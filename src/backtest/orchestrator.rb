@@ -22,7 +22,6 @@ module Backtest
     end
 
     # Run complete backtest
-    # @param config [Hash] Backtest configuration
     def run_backtest(config:)
       validate_config(config)
 
@@ -33,47 +32,56 @@ module Backtest
         capital: @capital
       )
 
-      # Step 1: Fetch data from DhanHQ
-      @logger.info("system.fetching_data")
+      # 1. Fetch Spot Index Data (at strategy interval)
+      @logger.info("system.fetching_spot_data", interval: config[:interval])
+      spot_data = @api_client.fetch_intraday_history(
+        security_id: map_underlying_id(config[:underlying]),
+        exchange_segment: 'IDX_I',
+        instrument: 'INDEX',
+        interval: config[:interval].to_s,
+        from_date: config[:from_date],
+        to_date: config[:to_date]
+      )
+      spot_bars = convert_flat_to_bars(spot_data)
+      @logger.info("system.spot_data_fetched", count: spot_bars.size)
+
+      # 2. Fetch Option Data (at 1m interval)
+      @logger.info("system.fetching_options_data", interval: '1')
       options_data = @api_client.fetch_expired_options(
         underlying: config[:underlying].to_sym,
-        from_date: Date.parse(config[:from_date]),
-        to_date: Date.parse(config[:to_date]),
+        from_date: config[:from_date],
+        to_date: config[:to_date],
         option_type: config[:option_type] || 'CALL',
         strikes: config[:strikes] || ['ATM', 'ATM+1', 'ATM-1'],
-        interval: config[:interval].to_s,
+        interval: '1', # Always 1m for precise execution
         expiry_flag: config[:expiry_flag] || 'WEEK'
       )
+      @logger.info("system.options_data_fetched", strike_count: options_data.keys.length)
 
-      @logger.info("system.data_fetched", strike_count: options_data.keys.length)
-
-      # Step 2: Convert and Backtest each strike
+      # 3. Backtest each strike
       all_backtest_results = {}
 
       options_data.each do |strike, data|
-        bars = convert_to_bars(data)
-        @logger.info("system.simulating_strike", strike: strike, bar_count: bars.length)
+        option_bars = convert_flat_to_bars(data)
+        @logger.info("system.simulating_strike", strike: strike, option_bars: option_bars.length)
 
-        # Step 3: Run backtest for each strike
         engine = OptionsBacktestEngine.new(capital: @capital, logger: @logger)
         strategy = TradingStrategies::StrategyFactory.create(config[:strategy])
         
-        # Use user's requested lambda structure for signal generation
         results = engine.backtest(
           symbol: strike,
-          bars: bars,
-          strategy: ->(bar) { strategy.signal.tap { strategy.add_bar(bar) } }
+          spot_bars: spot_bars,
+          option_bars: option_bars,
+          strategy: strategy,
+          interval: config[:interval]
         )
 
         all_backtest_results[strike] = results
       end
 
-      # Step 4: Aggregate results
+      # 4. Aggregate and Report
       @logger.info("system.aggregating_results")
       aggregated = aggregate_results(all_backtest_results)
-
-      # Step 5: Generate reports
-      @logger.info("system.generating_reports")
       generate_reports(aggregated, config)
 
       aggregated
@@ -89,29 +97,26 @@ module Backtest
       end
     end
 
-    # Convert API response hash-of-arrays to bar array
-    def convert_to_bars(data)
-      bars = []
+    def map_underlying_id(symbol)
+      { 'nifty' => 13, 'banknifty' => 12, 'finnifty' => 27, 'sensex' => 1 }.fetch(symbol.downcase)
+    end
+
+    def convert_flat_to_bars(data)
+      return [] unless data[:timestamp] && data[:timestamp].any?
       
-      timestamps = data[:timestamp]
-      return [] unless timestamps && timestamps.any?
-
-      timestamps.each_with_index do |ts, idx|
-        bars << {
-          timestamp: ts,
-          open: data[:open][idx],
-          high: data[:high][idx],
-          low: data[:low][idx],
-          close: data[:close][idx],
-          volume: data[:volume][idx],
-          iv: data[:iv][idx],
-          spot: data[:spot][idx],
-          strike: data[:strike][idx]
+      data[:timestamp].each_with_index.map do |ts, i|
+        {
+          timestamp: ts.to_i,
+          open: data[:open][i],
+          high: data[:high][i],
+          low: data[:low][i],
+          close: data[:close][i],
+          volume: data[:volume][i],
+          iv: data[:iv] ? data[:iv][i] : 0.0,
+          spot: data[:spot] ? data[:spot][i] : data[:close][i],
+          strike: data[:strike] ? data[:strike][i] : 0.0
         }
-      end
-
-      # Sort by timestamp
-      bars.sort_by { |b| b[:timestamp] }
+      end.sort_by { |b| b[:timestamp] }
     end
 
     # Aggregate results across all strikes
@@ -191,17 +196,20 @@ module Backtest
 
     # Generate HTML dashboard
     def generate_html_dashboard(aggregated, config, timestamp)
-      trades_html = aggregated[:trades].map do |trade|
+      trades_html = (aggregated[:trades] || []).map do |trade|
+        pnl = (trade[:pnl] || 0.0).to_f
+        pnl_pct = (trade[:pnl_pct] || 0.0).to_f
+        
         <<~HTML
           <tr>
             <td>#{trade[:strike]}</td>
             <td>#{format_time(trade[:entry_time])}</td>
             <td>#{format_time(trade[:exit_time])}</td>
-            <td>₹#{trade[:entry_price].round(2)}</td>
-            <td>₹#{trade[:exit_price].round(2)}</td>
+            <td>₹#{(trade[:entry_price] || 0.0).round(2)}</td>
+            <td>₹#{(trade[:exit_price] || 0.0).round(2)}</td>
             <td>#{trade[:quantity]}</td>
-            <td class="#{trade[:status] == 'WIN' ? 'win' : 'loss'}">₹#{trade[:pnl].round(2)}</td>
-            <td>#{trade[:pnl_pct].round(2)}%</td>
+            <td class="#{trade[:status] == 'WIN' ? 'win' : 'loss'}">₹#{pnl.round(2)}</td>
+            <td>#{pnl_pct.round(2)}%</td>
           </tr>
         HTML
       end.join("\n")

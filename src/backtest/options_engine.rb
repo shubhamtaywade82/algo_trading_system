@@ -6,29 +6,25 @@ require_relative '../utils/logger'
 
 module Backtest
   # Options Backtesting Engine
-  # Simulates intraday CE/PE trades with bracket orders and risk management
+  # Simulates intraday trades with Spot-based signaling and 1m Option-based execution
   class OptionsBacktestEngine
     # Trade states
     STATES = {
       idle: 'IDLE',
       signal_detected: 'SIGNAL_DETECTED',
-      entry_pending: 'ENTRY_PENDING',
-      position_open: 'POSITION_OPEN',
-      risk_management_active: 'RISK_MANAGEMENT_ACTIVE',
-      exit_pending: 'EXIT_PENDING',
-      position_closed: 'POSITION_CLOSED'
+      position_open: 'POSITION_OPEN'
     }.freeze
 
     # Constants
-    STT_RATE = 0.0005  # 0.05% on contract value
-    MARGIN_REQUIREMENT = 0.30  # 30% for index options
-    MIN_STOP_LOSS_PCT = 0.015  # 1.5% minimum
-    DEFAULT_POSITION_SIZE_PCT = 0.025  # 2.5% max per trade
-    NSE_CLOSE_TIME = 15 * 3600 + 30 * 60  # 3:30 PM IST in seconds from midnight
-    ENTRY_BUFFER_SECONDS = 2 * 60  # 2 min after signal before exit consideration
+    STT_RATE = 0.0005
+    MARGIN_REQUIREMENT = 0.30
+    MIN_STOP_LOSS_PCT = 0.015
+    DEFAULT_POSITION_SIZE_PCT = 0.025
+    NSE_CLOSE_TIME = 15 * 3600 + 15 * 60 # 3:15 PM IST
+    ENTRY_BUFFER_SECONDS = 2 * 60
 
     def initialize(capital:, logger: nil)
-      @capital = capital
+      @capital = capital.to_f
       @logger = logger || Utils::Logger
       @state = STATES[:idle]
       @trades = []
@@ -37,31 +33,57 @@ module Backtest
       @peak_equity = capital.to_f
     end
 
-    # Run backtest on options data
-    # @param symbol [String] e.g., 'NIFTY-26500-CE'
-    # @param bars [Array<Hash>] Array of OHLCV bars with timestamps
-    # @param strategy [Proc] Signal generation function
-    # @return [Hash] Backtest results
-    def backtest(symbol:, bars:, strategy:)
-      validate_bars(bars)
+    # @param symbol [String]
+    # @param spot_bars [Array] Strategy-interval bars for signaling
+    # @param option_bars [Array] 1m bars for execution
+    # @param strategy [BaseStrategy]
+    # @param interval [Integer] Spot interval in minutes
+    def backtest(symbol:, spot_bars:, option_bars:, strategy:, interval: 5)
+      validate_bars(spot_bars, option_bars)
       
-      @logger.info("system.backtest_start", symbol: symbol, bar_count: bars.length)
+      @logger.info("system.backtest_start", symbol: symbol, spot_count: spot_bars.size, opt_count: option_bars.size)
       
-      bars.each_with_index do |bar, idx|
-        process_bar(bar, symbol, strategy, bars, idx)
+      interval_seconds = interval.to_i * 60
+      last_processed_spot_idx = -1
+
+      option_bars.each do |opt_bar|
+        # 1. Synchronize: Find the latest CLOSED spot bar
+        # A spot bar starting at T is closed at T + interval_seconds
+        current_spot_idx = find_latest_closed_spot_idx(spot_bars, opt_bar[:timestamp], interval_seconds)
+        
+        if current_spot_idx > last_processed_spot_idx
+          # New spot candle(s) closed! Update strategy.
+          (last_processed_spot_idx + 1..current_spot_idx).each do |idx|
+            strategy.add_bar(spot_bars[idx])
+          end
+          last_processed_spot_idx = current_spot_idx
+          
+          # Check for new signal if idle
+          if @state == STATES[:idle]
+            check_for_signal(opt_bar, symbol, strategy)
+          end
+        end
+
+        # 2. Process FSM logic on 1m bars
+        process_execution_bar(opt_bar, symbol, strategy)
       end
 
       # Close any open position at end
-      close_position_at_market(bars.last, symbol) if @current_position
+      close_position_at_market(option_bars.last, symbol) if @current_position
 
       generate_report
     end
 
     private
 
-    # Process single bar
-    def process_bar(bar, symbol, strategy, bars, idx)
-      current_time_seconds = bar[:timestamp].to_i % 86400  # Seconds from midnight
+    def find_latest_closed_spot_idx(spot_bars, current_time, interval_seconds)
+      # We want the highest index 'i' such that spot_bars[i][:timestamp] + interval_seconds <= current_time
+      idx = spot_bars.index { |b| b[:timestamp] + interval_seconds > current_time }
+      idx ? idx - 1 : spot_bars.size - 1
+    end
+
+    def process_execution_bar(bar, symbol, strategy)
+      current_time_seconds = bar[:timestamp].to_i % 86400
 
       # Auto-exit at market close
       if current_time_seconds >= NSE_CLOSE_TIME
@@ -70,40 +92,30 @@ module Backtest
       end
 
       case @state
-      when STATES[:idle]
-        check_for_signal(bar, symbol, strategy)
       when STATES[:signal_detected]
         execute_entry(bar, symbol)
       when STATES[:position_open]
-        manage_open_position(bar, symbol, bars, idx)
-      when STATES[:risk_management_active]
-        manage_stop_loss(bar, symbol)
-      when STATES[:exit_pending]
-        execute_exit(bar, symbol)
+        manage_open_position(bar, symbol, strategy)
       end
     end
 
-    # Check for entry signal
     def check_for_signal(bar, symbol, strategy)
-      signal = strategy.call(bar)
-      return unless signal && (signal == :buy || signal[:action] == 'BUY')
+      signal = strategy.signal
+      return unless signal && signal[:action] == 'BUY'
 
       @logger.info("strategy.signal_detected", time: format_time(bar[:timestamp]), action: signal[:action], symbol: symbol)
       @state = STATES[:signal_detected]
       @current_position = {
         symbol: symbol,
         signal: signal,
-        entry_time: bar[:timestamp],
-        bar_index: 0
+        entry_trigger_time: bar[:timestamp]
       }
     end
 
-    # Execute entry order
     def execute_entry(bar, symbol)
       signal = @current_position[:signal]
-      entry_price = bar[:close]
+      entry_price = bar[:open] # Enter at Open of the 1m candle following the signal
       
-      # Calculate position size
       position_size_amount = @equity * DEFAULT_POSITION_SIZE_PCT
       quantity = (position_size_amount / entry_price).floor
       
@@ -113,231 +125,144 @@ module Backtest
         return
       end
 
-      # Calculate stop-loss
       direction = signal[:direction] || 'LONG'
       stop_loss = calculate_stop_loss(entry_price, direction)
       stop_loss_distance = (entry_price - stop_loss).abs
-      max_loss = (stop_loss_distance * quantity).round(2)
 
-      # Validate stop-loss
-      if stop_loss_distance < entry_price * MIN_STOP_LOSS_PCT
-        @state = STATES[:idle]
-        @current_position = nil
-        return
-      end
-
-      # Calculate costs
+      # Regulatory costs
       contract_value = entry_price * quantity
       stt = contract_value * STT_RATE
       margin_required = contract_value * MARGIN_REQUIREMENT
-      total_cost = margin_required + stt
-
-      if total_cost > @equity
-        @logger.warn("risk.insufficient_capital", required: total_cost.round(2), available: @equity.round(2))
+      
+      if (margin_required + stt) > @equity
         @state = STATES[:idle]
         @current_position = nil
         return
       end
 
-      # Record trade entry
       @current_position.merge!(
         state: STATES[:position_open],
         entry_price: entry_price,
         quantity: quantity,
         stop_loss: stop_loss,
-        max_loss: max_loss,
-        stt: stt,
+        tp: entry_price * 1.20, # 20% target
+        stt_entry: stt,
         margin_required: margin_required,
-        entry_bar_time: bar[:timestamp]
+        entry_time: bar[:timestamp]
       )
 
       @equity -= (margin_required + stt)
-      @logger.info("trade.entry", time: format_time(bar[:timestamp]), symbol: symbol, price: entry_price, quantity: quantity, sl: stop_loss)
+      @logger.info("trade.entry", time: format_time(bar[:timestamp]), symbol: symbol, price: entry_price, qty: quantity)
       @state = STATES[:position_open]
     end
 
-    # Manage open position
-    def manage_open_position(bar, symbol, bars, idx)
-      entry_price = @current_position[:entry_price]
-      entry_time = @current_position[:entry_bar_time]
-      stop_loss = @current_position[:stop_loss]
-      quantity = @current_position[:quantity]
+    def manage_open_position(bar, symbol, strategy)
+      pos = @current_position
       
-      # Check if entry buffer expired (2 minutes)
-      time_elapsed = bar[:timestamp].to_i - entry_time.to_i
-      
-      # Hit stop-loss?
-      if bar[:low] <= stop_loss
-        @logger.info("trade.stop_loss_hit", time: format_time(bar[:timestamp]), price: bar[:low])
-        realize_pnl(stop_loss, symbol, bar)
+      # 1. Check Stop Loss (using 1m High/Low)
+      if bar[:low] <= pos[:stop_loss]
+        realize_pnl(pos[:stop_loss], symbol, bar, 'STOP_LOSS')
         return
       end
 
-      # Take-profit logic (20% gain)
-      profit_target = entry_price * 1.20
-      if bar[:high] >= profit_target
-        @logger.info("trade.target_hit", time: format_time(bar[:timestamp]), price: bar[:high])
-        realize_pnl(profit_target, symbol, bar)
+      # 2. Check Profit Target
+      if bar[:high] >= pos[:tp]
+        realize_pnl(pos[:tp], symbol, bar, 'TARGET')
         return
       end
 
-      # Theta decay exit: If 2 mins elapsed and price moving against position, exit
-      if time_elapsed >= ENTRY_BUFFER_SECONDS && bar[:close] < entry_price * 0.98
-        @logger.info("trade.theta_exit", time: format_time(bar[:timestamp]), price: bar[:close])
-        realize_pnl(bar[:close], symbol, bar)
+      # 3. Strategy Exit
+      if strategy.signal[:action] == 'SELL'
+        realize_pnl(bar[:close], symbol, bar, 'STRATEGY_EXIT')
         return
+      end
+
+      # 4. Theta/Time Buffer
+      time_elapsed = bar[:timestamp].to_i - pos[:entry_time].to_i
+      if time_elapsed >= ENTRY_BUFFER_SECONDS && bar[:close] < pos[:entry_price] * 0.98
+        realize_pnl(bar[:close], symbol, bar, 'THETA_DECAY')
       end
     end
 
-    # Realize P&L and close position
-    def realize_pnl(exit_price, symbol, bar)
-      entry_price = @current_position[:entry_price]
-      quantity = @current_position[:quantity]
-      stt_entry = @current_position[:stt]
-      margin_required = @current_position[:margin_required]
+    def realize_pnl(exit_price, symbol, bar, reason)
+      pos = @current_position
+      stt_exit = (exit_price * pos[:quantity]) * STT_RATE
+      
+      gross_pnl = (exit_price - pos[:entry_price]) * pos[:quantity]
+      net_pnl = gross_pnl - (pos[:stt_entry] + stt_exit)
+      pnl_pct = (net_pnl / (pos[:entry_price] * pos[:quantity])) * 100
 
-      # Exit STT
-      stt_exit = (exit_price * quantity) * STT_RATE
-      total_stt = stt_entry + stt_exit
-
-      gross_pnl = (exit_price - entry_price) * quantity
-      net_pnl = gross_pnl - total_stt
-      pnl_pct = (net_pnl / (entry_price * quantity)) * 100
-
-      # Update equity
-      @equity += margin_required + gross_pnl - stt_exit
+      @equity += pos[:margin_required] + gross_pnl - stt_exit
       @peak_equity = [@peak_equity, @equity].max
 
-      # Record trade
-      trade = {
+      @trades << {
         symbol: symbol,
-        entry_price: entry_price,
-        exit_price: exit_price,
-        quantity: quantity,
-        entry_time: @current_position[:entry_time],
+        entry_price: pos[:entry_price].to_f,
+        exit_price: exit_price.to_f,
+        quantity: pos[:quantity],
+        entry_time: pos[:entry_time],
         exit_time: bar[:timestamp],
-        pnl: net_pnl.round(2),
-        pnl_pct: pnl_pct.round(2),
-        max_loss: @current_position[:max_loss],
-        status: net_pnl.positive? ? 'WIN' : 'LOSS'
+        pnl: net_pnl.to_f.round(2),
+        pnl_pct: pnl_pct.to_f.round(2),
+        status: net_pnl.positive? ? 'WIN' : 'LOSS',
+        reason: reason
       }
 
-      @trades << trade
-      @logger.info("trade.exit", time: format_time(bar[:timestamp]), symbol: symbol, price: exit_price, pnl: net_pnl.round(2))
-
+      @logger.info("trade.exit", time: format_time(bar[:timestamp]), symbol: symbol, price: exit_price, pnl: net_pnl.round(2), reason: reason)
       @state = STATES[:idle]
       @current_position = nil
     end
 
-    # Close position at market close
     def close_position_at_market(bar, symbol)
-      @logger.info("trade.market_close_exit", time: format_time(bar[:timestamp]))
-      realize_pnl(bar[:close], symbol, bar)
+      realize_pnl(bar[:close], symbol, bar, 'MARKET_CLOSE')
     end
 
-    # Calculate stop-loss based on direction
-    def calculate_stop_loss(entry_price, direction)
-      case direction.to_s.upcase
-      when 'LONG'
-        entry_price * (1 - MIN_STOP_LOSS_PCT)
-      when 'SHORT'
-        entry_price * (1 + MIN_STOP_LOSS_PCT)
-      else
-        entry_price * (1 - MIN_STOP_LOSS_PCT)
-      end
+    def calculate_stop_loss(price, dir)
+      dir == 'SHORT' ? price * (1 + MIN_STOP_LOSS_PCT) : price * (1 - MIN_STOP_LOSS_PCT)
     end
 
-    # Validate bar data
-    def validate_bars(bars)
-      raise ArgumentError, 'bars array is empty' if bars.nil? || bars.empty?
-
-      required_fields = %i[timestamp open high low close volume]
-      bars.each do |bar|
-        required_fields.each do |field|
-          raise ArgumentError, "Bar missing field: #{field}" unless bar.key?(field)
-        end
-      end
-
-      # Check timestamp continuity
-      bars.each_cons(2) do |prev, curr|
-        if curr[:timestamp].to_i <= prev[:timestamp].to_i
-          @logger.warn("data.non_monotonic_timestamps", prev: prev[:timestamp], curr: curr[:timestamp])
-        end
-      end
+    def validate_bars(spot, opt)
+      raise ArgumentError, "Spot or Option bars missing" if spot.empty? || opt.empty?
     end
 
-    # Generate backtest report
     def generate_report
       total_trades = @trades.length
-      winning_trades = @trades.count { |t| t[:status] == 'WIN' }
-      losing_trades = total_trades - winning_trades
+      wins = @trades.count { |t| t[:status] == 'WIN' }
+      total_pnl = @trades.sum { |t| t[:pnl].to_f }
       
-      win_rate = total_trades.positive? ? (winning_trades.to_f / total_trades * 100).round(2) : 0
-      total_pnl = @trades.sum { |t| t[:pnl] }
-      total_pnl_pct = ((total_pnl / @capital) * 100).round(2)
-
-      avg_win = winning_trades.positive? ? (@trades.select { |t| t[:status] == 'WIN' }.sum { |t| t[:pnl] } / winning_trades).round(2) : 0
-      avg_loss = losing_trades.positive? ? (@trades.select { |t| t[:status] == 'LOSS' }.sum { |t| t[:pnl] } / losing_trades).round(2) : 0
-
-      max_drawdown = calculate_max_drawdown
-      sharpe_ratio = calculate_sharpe_ratio
-
       {
         summary: {
           total_trades: total_trades,
-          winning_trades: winning_trades,
-          losing_trades: losing_trades,
-          win_rate: "#{win_rate}%",
+          win_rate: total_trades.positive? ? "#{(wins.to_f / total_trades * 100).round(2)}%" : "0%",
           total_pnl: "₹#{total_pnl.round(2)}",
-          total_pnl_pct: "#{total_pnl_pct}%",
-          avg_win: "₹#{avg_win.round(2)}",
-          avg_loss: "₹#{avg_loss.round(2)}",
-          max_drawdown: "#{max_drawdown.round(2)}%",
-          sharpe_ratio: sharpe_ratio.round(2),
-          starting_capital: "₹#{@capital.round(2)}",
-          ending_capital: "₹#{@equity.round(2)}"
+          total_pnl_pct: "#{((total_pnl / (@equity - total_pnl)) * 100).round(2)}%",
+          starting_capital: "₹#{(@equity - total_pnl).round(2)}",
+          ending_capital: "₹#{@equity.round(2)}",
+          max_drawdown: "#{calculate_max_drawdown.round(2)}%",
+          sharpe_ratio: calculate_sharpe_ratio.round(2)
         },
         trades: @trades
       }
     end
 
-    # Calculate max drawdown
     def calculate_max_drawdown
-      equity_curve = [@capital]
-      current = @capital
-      @trades.each do |trade|
-        current += trade[:pnl]
-        equity_curve << current
-      end
-
-      max_peak = equity_curve.first
-      max_dd = 0
-
-      equity_curve.each do |equity|
-        max_peak = [max_peak, equity].max
-        dd = ((max_peak - equity) / max_peak) * 100
-        max_dd = [max_dd, dd].max
-      end
-
-      max_dd
+      return 0.0 if @trades.empty?
+      curve = [@capital]; @trades.each { |t| curve << curve.last + t[:pnl] }
+      max_peak = curve.first; max_dd = 0.0
+      curve.each { |e| max_peak = [max_peak, e].max; dd = (max_peak - e) / max_peak; max_dd = [max_dd, dd].max }
+      max_dd * 100
     end
 
-    # Calculate Sharpe ratio
     def calculate_sharpe_ratio
-      return 0 if @trades.length < 2
-
+      return 0.0 if @trades.size < 2
       returns = @trades.map { |t| t[:pnl_pct] }
-      mean_return = returns.sum / returns.length
-      variance = returns.sum { |r| (r - mean_return)**2 } / (returns.length - 1)
-      std_dev = Math.sqrt(variance)
-
-      return 0 if std_dev.zero?
-      (mean_return / std_dev) * Math.sqrt(252)  # Annualized
+      avg = returns.sum / returns.size.to_f
+      sd = Math.sqrt(returns.map { |r| (r - avg)**2 }.sum / (returns.size - 1))
+      sd.zero? ? 0.0 : (avg / sd) * Math.sqrt(252)
     end
 
-    # Format unix timestamp to readable time
-    def format_time(timestamp)
-      Time.at(timestamp.to_i).strftime('%H:%M:%S')
+    def format_time(ts)
+      Time.at(ts.to_i).strftime('%H:%M:%S')
     end
   end
 end

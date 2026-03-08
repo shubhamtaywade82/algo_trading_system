@@ -23,13 +23,13 @@ module Api
       # 90-day chunking for intraday
       split_date_range(from_date, to_date, chunk_size: 89).each do |chunk_from, chunk_to|
         payload = {
-          securityId: security_id.to_s,
-          exchangeSegment: exchange_segment,
-          instrument: instrument,
-          interval: interval.to_s,
-          oi: true,
-          fromDate: format_date_time(chunk_from, start_of_day: true),
-          toDate: format_date_time(chunk_to, start_of_day: false)
+          'securityId' => security_id.to_s,
+          'exchangeSegment' => exchange_segment,
+          'instrument' => instrument,
+          'interval' => interval.to_s,
+          'oi' => false,
+          'fromDate' => format_date_time(chunk_from, start_of_day: true),
+          'toDate' => format_date_time(chunk_to, start_of_day: false)
         }
         
         response_data = post_with_retry('/v2/charts/intraday', payload)

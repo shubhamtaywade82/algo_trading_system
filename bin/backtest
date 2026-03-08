@@ -23,6 +23,7 @@ OptionParser.new do |opts|
   opts.on("-s", "--strategy NAME", "Strategy name (rsi_macd, bollinger_breakout, etc.)") { |v| options[:strategy] = v.to_sym }
   opts.on("-f", "--from DATE", "Start date (YYYY-MM-DD)") { |v| options[:from_date] = v }
   opts.on("-t", "--to DATE", "End date (YYYY-MM-DD)") { |v| options[:to_date] = v }
+  opts.on("-i", "--interval MIN", "Spot interval (1, 5, 15, 25, 60)") { |v| options[:interval] = v }
   opts.on("-c", "--capital AMOUNT", Float, "Starting capital") { |v| options[:capital] = v }
 end.parse!
 
