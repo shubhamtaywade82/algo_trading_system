@@ -26,9 +26,6 @@ gem "zeitwerk", "~> 2.6"
 # YAML config parsing
 gem "psych", "~> 5.1"
 
-# CSV handling for backtest reports
-gem "csv", "~> 3.2"
-
 group :development do
   # Static analysis, refactoring engine, and architecture monitoring
   gem "ruby_mastery", github: "shubhamtaywade82/ruby_mastery"
