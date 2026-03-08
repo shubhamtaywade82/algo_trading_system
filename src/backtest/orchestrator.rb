@@ -83,11 +83,66 @@ module Backtest
       @logger.info("system.aggregating_results")
       aggregated = aggregate_results(all_backtest_results)
       generate_reports(aggregated, config)
+      print_console_summary(aggregated, config)
 
       aggregated
     end
 
     private
+
+    def print_console_summary(aggregated, config)
+      require 'terminal-table'
+      
+      is_real_data = !@access_token.to_s.start_with?('MOCK')
+      
+      puts "\n" + "═" * 80
+      puts "📊 BACKTEST SESSION SUMMARY"
+      puts "═" * 80
+      puts "  %-20s : %s" % ["Underlying Asset", config[:underlying].to_s.upcase]
+      puts "  %-20s : %s" % ["Strategy Name", config[:strategy].to_s.upcase]
+      puts "  %-20s : %s to %s" % ["Time Period", config[:from_date], config[:to_date]]
+      puts "  %-20s : %s" % ["Interval", "#{config[:interval]} min (Spot) / 1 min (Option)"]
+      puts "  %-20s : %s" % ["Option Type", config[:option_type] || 'CALL']
+      puts "  %-20s : ₹#{@capital.round(0)}" % ["Starting Capital"]
+      puts "  %-20s : %s" % ["Real Market Data", is_real_data ? "✅ YES" : "🧪 NO (Synthetic/Mock)"]
+      puts "═" * 80
+      
+      rows = aggregated[:by_strike].map do |strike, res|
+        s = res[:summary]
+        [
+          strike,
+          s[:total_trades],
+          s[:win_rate],
+          s[:total_pnl],
+          s[:max_drawdown],
+          s[:sharpe_ratio]
+        ]
+      end
+      
+      # Add Total row
+      total_wins = aggregated[:trades].count { |t| t[:status] == 'WIN' }
+      total_trades = aggregated[:total_trades]
+      win_rate = total_trades.positive? ? "#{(total_wins.to_f / total_trades * 100).round(2)}%" : "0%"
+      
+      rows << :separator
+      rows << [
+        'TOTAL AGGREGATE',
+        total_trades,
+        win_rate,
+        "₹#{aggregated[:total_pnl]}",
+        "-",
+        "-"
+      ]
+
+      table = Terminal::Table.new do |t|
+        t.headings = ['Strike', 'Trades', 'Win Rate', 'Net P&L', 'Max DD', 'Sharpe']
+        t.rows = rows
+        t.style = { border_i: 'x', border_y: '│', border_x: '─' }
+      end
+
+      puts table
+      puts "═" * 80 + "\n"
+    end
 
     # Validate configuration
     def validate_config(config)
