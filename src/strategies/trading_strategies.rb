@@ -2,6 +2,7 @@
 
 require 'enumerable/statistics'
 require 'ostruct'
+require_relative '../utils/greeks_wrapper'
 
 # Trading Strategies for Intraday Options
 module TradingStrategies
@@ -25,6 +26,19 @@ module TradingStrategies
     end
 
     protected
+
+    def greeks(expiry_days: 7, type: 'CALL')
+      last = @history.last
+      return nil unless last && last[:iv] && last[:spot] && last[:close]
+
+      Utils::GreeksWrapper.calculate(
+        spot: last[:spot],
+        strike: last[:strike] || last[:spot], # Default to ATM if unknown
+        expiry_days: expiry_days,
+        iv_pct: last[:iv],
+        type: type
+      )
+    end
 
     # Calculate RSI
     def rsi(period = @lookback_period)
@@ -54,10 +68,7 @@ module TradingStrategies
       ema_fast = calculate_ema(closes, fast)
       ema_slow = calculate_ema(closes, slow)
       
-      macd_line_history = []
       min_len = [ema_fast.length, ema_slow.length].min
-      
-      # Align EMA histories
       aligned_fast = ema_fast.last(min_len)
       aligned_slow = ema_slow.last(min_len)
       
@@ -319,13 +330,43 @@ module TradingStrategies
     end
   end
 
+  # Strategy 5: EMA Crossover
+  class EmaCrossover < BaseStrategy
+    def signal
+      return { action: 'HOLD', confidence: 0 } if @history.length < 21
+
+      closes = @history.map { |bar| bar[:close] }
+      ema_fast = calculate_ema(closes, 9).last
+      ema_slow = calculate_ema(closes, 21).last
+
+      if ema_fast > ema_slow
+        {
+          action: 'BUY',
+          direction: 'LONG',
+          confidence: 7,
+          reason: "EMA 9 (#{ema_fast.round(2)}) crossed above EMA 21 (#{ema_slow.round(2)})"
+        }
+      elsif ema_fast < ema_slow
+        {
+          action: 'SELL',
+          direction: 'SHORT',
+          confidence: 7,
+          reason: "EMA 9 (#{ema_fast.round(2)}) crossed below EMA 21 (#{ema_slow.round(2)})"
+        }
+      else
+        { action: 'HOLD', confidence: 0 }
+      end
+    end
+  end
+
   # Strategy Factory
   class StrategyFactory
     STRATEGIES = {
       rsi_macd: RSIMACDReversal,
       bollinger_breakout: BollingerBandsBreakout,
       iv_spike_momentum: IVSpikeVolumeMomentum,
-      vwap_breakout: VWAPBreakout
+      vwap_breakout: VWAPBreakout,
+      ema_crossover: EmaCrossover
     }.freeze
 
     def self.create(strategy_type)

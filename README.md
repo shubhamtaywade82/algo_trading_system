@@ -20,6 +20,16 @@ A battle-tested, professional-grade framework for intraday options trading on In
 - **Data**: DhanHQ API V2
 - **Testing**: RSpec with VCR for reliable API mocking
 
+## 📖 Documentation
+
+- [00_START_HERE](00_START_HERE.txt)
+- [Quick Reference](QUICK_REFERENCE.md)
+- [Implementation Guide](IMPLEMENTATION_GUIDE.md)
+- [Architecture Details](ARCHITECTURE.md)
+- [Greeks Calculator Guide](GREEKS_GUIDE.md)
+- [DHAN API Mapping](DHAN_API_MAPPING.md)
+- [DHAN API Visual Guide](DHAN_API_VISUAL_GUIDE.md)
+
 ## 📖 Quick Start
 
 ### 1. Setup Environment

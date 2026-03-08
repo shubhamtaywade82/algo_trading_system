@@ -143,18 +143,22 @@ module Backtest
       # Summary report
       summary_file = File.join(@output_dir, "backtest_summary_#{timestamp}.json")
       File.write(summary_file, JSON.pretty_generate(format_summary_report(aggregated, config)))
+      @logger.info("system.report_generated", path: summary_file)
 
       # Detailed trades report
       trades_file = File.join(@output_dir, "trades_#{timestamp}.json")
       File.write(trades_file, JSON.pretty_generate(aggregated[:trades]))
+      @logger.info("system.report_generated", path: trades_file)
 
       # HTML dashboard
       html_file = File.join(@output_dir, "dashboard_#{timestamp}.html")
       File.write(html_file, generate_html_dashboard(aggregated, config, timestamp))
+      @logger.info("system.report_generated", path: html_file)
 
       # CSV export for analysis
       csv_file = File.join(@output_dir, "trades_#{timestamp}.csv")
       File.write(csv_file, generate_csv_export(aggregated[:trades]))
+      @logger.info("system.report_generated", path: csv_file)
     end
 
     # Format summary report

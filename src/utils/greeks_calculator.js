@@ -1,15 +1,29 @@
+// frozen_string_literal: true
+
 // Greeks Calculator & Real-Time Signal Processor
 // Used in conjunction with DhanHQ WebSocket for live trading
 
 const fs = require('fs');
 
-// Black-Scholes Greeks Calculator
+/**
+ * Black-Scholes Greeks Calculator
+ */
 class GreeksCalculator {
   constructor(riskFreeRate = 0.06) {
     this.riskFreeRate = riskFreeRate;
   }
 
-  // Calculate all Greeks for an option
+  /**
+   * Calculate all Greeks for an option
+   * 
+   * @param {number} spot Spot Price
+   * @param {number} strike Strike Price
+   * @param {number} expiry Days to Expiry
+   * @param {number} volatility Implied Volatility (as percentage, e.g., 35 for 35%)
+   * @param {string} optionType 'CALL' or 'PUT'
+   * @param {number} dividend Dividend yield (as percentage, e.g., 0)
+   * @returns {Object} Calculated Greeks
+   */
   calculateGreeks(spot, strike, expiry, volatility, optionType = 'CALL', dividend = 0) {
     if (!this.validateInputs(spot, strike, expiry, volatility)) {
       return null;
@@ -32,8 +46,8 @@ class GreeksCalculator {
     const pdf_d1 = this.normalPDF(d1);
 
     // Greeks calculation
-    const delta = optionType === 'CALL'
-      ? Math.exp(-q * T) * nd1
+    const delta = optionType === 'CALL' 
+      ? Math.exp(-q * T) * nd1 
       : Math.exp(-q * T) * (nd1 - 1);
 
     const gamma = (Math.exp(-q * T) * pdf_d1) / (S * sigma * Math.sqrt(T));
@@ -41,11 +55,11 @@ class GreeksCalculator {
     const vega = S * Math.exp(-q * T) * pdf_d1 * Math.sqrt(T) / 100.0; // Per 1% change
 
     const theta = optionType === 'CALL'
-      ? (-S * Math.exp(-q * T) * pdf_d1 * sigma / (2 * Math.sqrt(T))
-        - r * K * Math.exp(-r * T) * nd2
+      ? (-S * Math.exp(-q * T) * pdf_d1 * sigma / (2 * Math.sqrt(T)) 
+        - r * K * Math.exp(-r * T) * nd2 
         + q * S * Math.exp(-q * T) * nd1) / 365.0
-      : (-S * Math.exp(-q * T) * pdf_d1 * sigma / (2 * Math.sqrt(T))
-        + r * K * Math.exp(-r * T) * (1 - nd2)
+      : (-S * Math.exp(-q * T) * pdf_d1 * sigma / (2 * Math.sqrt(T)) 
+        + r * K * Math.exp(-r * T) * (1 - nd2) 
         - q * S * Math.exp(-q * T) * (1 - nd1)) / 365.0;
 
     const rho = optionType === 'CALL'
@@ -62,7 +76,9 @@ class GreeksCalculator {
     };
   }
 
-  // Estimate IV from option price (Newton-Raphson method)
+  /**
+   * Estimate IV from option price (Newton-Raphson method)
+   */
   estimateIV(spot, strike, expiry, optionPrice, optionType = 'CALL', maxIterations = 10) {
     if (!this.validateInputs(spot, strike, expiry, 20)) {
       return null;
@@ -76,7 +92,8 @@ class GreeksCalculator {
 
     for (let i = 0; i < maxIterations; i++) {
       const price = this.blackScholesPrice(S, K, T, r, iv, optionType);
-      const vega = this.calculateGreeks(S, K, expiry, iv * 100, optionType).vega;
+      const greeks = this.calculateGreeks(S, K, expiry, iv * 100, optionType);
+      const vega = greeks ? greeks.vega : 0;
 
       if (Math.abs(price - optionPrice) < 0.01 || vega === 0) {
         break;
@@ -89,7 +106,9 @@ class GreeksCalculator {
     return Math.round(iv * 100 * 100) / 100; // Return as percentage
   }
 
-  // Black-Scholes price calculation
+  /**
+   * Black-Scholes price calculation
+   */
   blackScholesPrice(spot, strike, T, r, sigma, optionType = 'CALL') {
     const d1 = (Math.log(spot / strike) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
     const d2 = d1 - sigma * Math.sqrt(T);
@@ -101,17 +120,23 @@ class GreeksCalculator {
     }
   }
 
-  // Normal CDF (cumulative distribution function)
+  /**
+   * Normal CDF (cumulative distribution function)
+   */
   normalCDF(x) {
-    return (1.0 + Math.erf(x / Math.sqrt(2))) / 2.0;
+    return (1.0 + this.erf(x / Math.sqrt(2))) / 2.0;
   }
 
-  // Normal PDF (probability density function)
+  /**
+   * Normal PDF (probability density function)
+   */
   normalPDF(x) {
     return Math.exp(-x * x / 2.0) / Math.sqrt(2 * Math.PI);
   }
 
-  // Error function approximation
+  /**
+   * Error function approximation (Abramowitz and Stegun)
+   */
   erf(x) {
     const a1 = 0.254829592;
     const a2 = -0.284496736;
@@ -129,27 +154,29 @@ class GreeksCalculator {
     return sign * y;
   }
 
-  // Input validation
+  /**
+   * Input validation
+   */
   validateInputs(spot, strike, expiry, volatility) {
-    if (spot <= 0 || strike <= 0 || expiry <= 0 || volatility <= 0) {
-      console.error('Invalid inputs: all parameters must be positive');
+    if (spot <= 0 || strike <= 0 || expiry < 0 || volatility <= 0) {
       return false;
-    }
-    if (volatility > 500) {
-      console.warn(`High volatility: ${volatility}%`);
     }
     return true;
   }
 }
 
-// Real-time Signal Processor
+/**
+ * Real-time Signal Processor
+ */
 class SignalProcessor {
   constructor(greeksCalculator) {
     this.greeksCalculator = greeksCalculator;
     this.marketData = new Map(); // Cache for market data
   }
 
-  // Process market update and generate trade signals
+  /**
+   * Process market update and generate trade signals
+   */
   processMarketUpdate(update) {
     const {
       symbol,
@@ -202,7 +229,9 @@ class SignalProcessor {
     });
   }
 
-  // Generate trading signal
+  /**
+   * Generate trading signal
+   */
   generateSignal(symbol, greeks, marketData) {
     const signals = [];
     const { delta, gamma, vega, theta } = greeks;
@@ -249,7 +278,7 @@ class SignalProcessor {
     }
 
     // Signal 5: Gamma squeeze (low price, high gamma)
-    if (optionLTP < (Math.abs(spot - 26500) * 0.05) && gamma > 0.01) {
+    if (optionLTP < (Math.abs(spot - strike) * 0.05) && gamma > 0.01) {
       signals.push({
         type: 'GAMMA_SQUEEZE',
         action: 'BUY',
@@ -275,7 +304,9 @@ class SignalProcessor {
     };
   }
 
-  // Monitor Greeks for risk management
+  /**
+   * Monitor Greeks for risk management
+   */
   monitorGreeksForRisk(position) {
     const { symbol, greeks, entryGreeks, quantity, entryPrice } = position;
 
@@ -321,12 +352,14 @@ class SignalProcessor {
       });
     }
 
-    return risks.length > 0
+    return risks.length > 0 
       ? { risks, timestamp: new Date().toISOString() }
       : { risks: [], status: 'SAFE', timestamp: new Date().toISOString() };
   }
 
-  // Generate position-sizing recommendation
+  /**
+   * Generate position-sizing recommendation
+   */
   getPositionSizeRecommendation(capital, delta, gamma, theta, spot, strike) {
     const maxCapitalRisk = capital * 0.025; // 2.5% max risk per position
 
@@ -364,29 +397,13 @@ module.exports = {
   SignalProcessor
 };
 
-// Example usage (uncomment to test)
-/*
-const calc = new GreeksCalculator();
-const processor = new SignalProcessor(calc);
-
-// Test Greeks calculation
-const greeks = calc.calculateGreeks(26500, 26500, 7, 35, 'CALL');
-console.log('Greeks:', greeks);
-
-// Test signal generation
-const update = {
-  symbol: 'NIFTY-26500-CE',
-  spot: 26525,
-  optionLTP: 354,
-  strike: 26500,
-  optionType: 'CALL',
-  expiryDays: 7,
-  iv: 35.5,
-  volume: 2500,
-  openInterest: 50000,
-  timestamp: Date.now()
-};
-
-const signal = processor.processMarketUpdate(update);
-console.log('Signal:', JSON.stringify(signal, null, 2));
-*/
+// CLI Support for direct calls
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args.length >= 5) {
+    const calc = new GreeksCalculator();
+    const [S, K, E, V, type] = args;
+    const res = calc.calculateGreeks(parseFloat(S), parseFloat(K), parseFloat(E), parseFloat(V), type || 'CALL');
+    console.log(JSON.stringify(res));
+  }
+}
