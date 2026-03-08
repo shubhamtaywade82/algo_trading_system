@@ -85,7 +85,14 @@ module Api
           # Map CALL/PUT to ce/pe for parsing
           api_type_key = option_type.to_s.upcase == 'CALL' ? :ce : :pe
           strike_data = response.dig(:data, api_type_key)
-          next unless strike_data
+          
+          if strike_data && strike_data[:timestamp]
+            Utils::Logger.debug("api.strike_data_found", strike: strike, count: strike_data[:timestamp].size)
+          else
+            Utils::Logger.warn("api.strike_data_missing", strike: strike, key: api_type_key)
+          end
+          
+          next unless strike_data && strike_data[:timestamp] && strike_data[:timestamp].any?
 
           strike_key = "#{strike}_#{option_type}"
           all_data[strike_key] ||= { timestamp: [], open: [], high: [], low: [], close: [], iv: [], oi: [], volume: [], spot: [] }
