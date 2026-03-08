@@ -68,7 +68,7 @@ phase. Fix all violations before starting the next phase.
 
 ---
 
-## Phase 7 — Backtest Engine
+## Phase 7 — Backtest Engine (V1)
 
 - [x] **T31** — Create `src/backtest/engine.rb` — candle replay loop
 - [x] **T32** — Create `src/backtest/pnl_calculator.rb` — trade-level P&L with slippage + brokerage
@@ -87,7 +87,7 @@ phase. Fix all violations before starting the next phase.
 
 ---
 
-## Phase 9 — Polish
+## Phase 9 — Polish & Production Readiness
 
 - [x] **T40** — Add Rake tasks (`rake backtest`, `rake trade`, `rake spec`)
 - [x] **T41** — Update README.md with full usage instructions and examples
@@ -97,3 +97,16 @@ phase. Fix all violations before starting the next phase.
 - [x] **T45** — Run `ruby_mastery architecture score src/` — target score > 80
 - [x] **T46** — Run `ruby_mastery refactor src/` — apply all safe automatic refactors
 - [x] **T47** — Add `rake quality` task that runs `ruby_mastery analyze src/` in CI
+
+---
+
+## Phase 10 — Advanced Options Features (New)
+
+- [x] **T48** — Implement 7-state FSM in `OptionsBacktestEngine` for zero-bias simulation.
+- [x] **T49** — Integrate Node.js `greeks_calculator.js` for real-time Greeks (Delta, Theta, etc.).
+- [x] **T50** — Implement `DhanApiClient` V2 with 30-day auto-chunking and IV/OI support.
+- [x] **T51** — Implement `OptionsBacktestOrchestrator` for multi-strike parallel analysis.
+- [x] **T52** — Consolidate strategies into modular `TradingStrategies` factory with indicator history.
+- [x] **T53** — Professional reporting suite: Unified JSON, CSV, and interactive HTML dashboards.
+- [x] **T54** — Enhanced Risk Management: 2.5% equity risk position sizing and 0.05% STT enforcement.
+- [x] **T55** — Automated authentication synchronization via `bin/setup_auth`.

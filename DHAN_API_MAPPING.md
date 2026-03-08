@@ -1,316 +1,74 @@
-# DHAN API MAPPING
+# DHAN API MAPPING (Production Trading)
 
-Complete mapping of DhanHQ API endpoints used by this system.
-Do NOT invent fields or endpoints not listed here.
+This document maps the DhanHQ API specifications to the system implementation.
 
-API Base URL: `https://api.dhan.co`
-WebSocket URL: `wss://api-feed.dhan.co`
+## 1. Intraday Historical Data
+`POST https://api.dhan.co/v2/charts/intraday`
 
-Authentication: `access-token` header on every request.
+**Usage**: Used for pre-loading candle data to warm up indicators in live trading.
 
----
-
-## 1. Place Order
-
-**Endpoint**: `POST /orders`
-
-**Request Body**:
+### Request
 ```json
 {
-  "dhanClientId": "string",
-  "correlationId": "string",         // optional — our internal order ref
-  "transactionType": "BUY | SELL",
+  "securityId": "13",
   "exchangeSegment": "NSE_FNO",
-  "productType": "INTRADAY",
-  "orderType": "MARKET | LIMIT | STOP_LOSS | STOP_LOSS_MARKET",
-  "validity": "DAY",
-  "tradingSymbol": "string",         // e.g. "NIFTY25JAN25C24000"
-  "securityId": "string",            // DhanHQ security ID (required)
-  "quantity": 50,                    // in units (lots × lot_size)
-  "disclosedQuantity": 0,
-  "price": 0.0,                      // 0 for MARKET orders
-  "triggerPrice": 0.0,               // required for SL/SL-M orders
-  "afterMarketOrder": false
-}
-```
-
-**Response**:
-```json
-{
-  "orderId": "string",
-  "orderStatus": "TRANSIT"
-}
-```
-
----
-
-## 2. Modify Order
-
-**Endpoint**: `PUT /orders/{order-id}`
-
-**Request Body**:
-```json
-{
-  "dhanClientId": "string",
-  "orderId": "string",
-  "orderType": "LIMIT",
-  "legName": "ENTRY_LEG",
-  "quantity": 50,
-  "price": 145.0,
-  "disclosedQuantity": 0,
-  "triggerPrice": 0.0,
-  "validity": "DAY"
-}
-```
-
----
-
-## 3. Cancel Order
-
-**Endpoint**: `DELETE /orders/{order-id}`
-
-**Response**:
-```json
-{
-  "orderId": "string",
-  "orderStatus": "CANCELLED"
-}
-```
-
----
-
-## 4. Get Order List
-
-**Endpoint**: `GET /orders`
-
-**Response** (array of orders):
-```json
-[
-  {
-    "dhanClientId": "string",
-    "orderId": "string",
-    "correlationId": "string",
-    "orderStatus": "TRADED | PENDING | CANCELLED | REJECTED | TRANSIT",
-    "transactionType": "BUY | SELL",
-    "exchangeSegment": "NSE_FNO",
-    "productType": "INTRADAY",
-    "orderType": "MARKET",
-    "tradingSymbol": "string",
-    "securityId": "string",
-    "quantity": 50,
-    "price": 0.0,
-    "triggerPrice": 0.0,
-    "filledQty": 50,
-    "avgTradedPrice": 148.75,
-    "createTime": "2024-01-15 09:32:00",
-    "updateTime": "2024-01-15 09:32:05",
-    "exchangeTime": "2024-01-15 09:32:04",
-    "drvExpiryDate": "2024-01-25",
-    "drvOptionType": "CALL | PUT",
-    "drvStrikePrice": 24000.0
-  }
-]
-```
-
----
-
-## 5. Get Positions
-
-**Endpoint**: `GET /positions`
-
-**Response** (array):
-```json
-[
-  {
-    "dhanClientId": "string",
-    "tradingSymbol": "string",
-    "securityId": "string",
-    "positionType": "LONG | SHORT",
-    "exchangeSegment": "NSE_FNO",
-    "productType": "INTRADAY",
-    "buyAvg": 148.75,
-    "buyQty": 50,
-    "sellAvg": 0.0,
-    "sellQty": 0,
-    "netQty": 50,
-    "realizedProfit": 0.0,
-    "unrealizedProfit": 375.0,
-    "rbiReferenceRate": 0.0,
-    "multiplier": 1,
-    "carryForwardBuyQty": 0,
-    "carryForwardSellQty": 0,
-    "carryForwardBuyValue": 0.0,
-    "carryForwardSellValue": 0.0,
-    "dayBuyQty": 50,
-    "daySellQty": 0,
-    "dayBuyValue": 7437.5,
-    "daySellValue": 0.0
-  }
-]
-```
-
----
-
-## 6. Get Holdings
-
-**Endpoint**: `GET /holdings`
-
----
-
-## 7. Get Fund Limits (Capital Available)
-
-**Endpoint**: `GET /fundlimit`
-
-**Response**:
-```json
-{
-  "dhanClientId": "string",
-  "availabelBalance": 485000.0,
-  "sodLimit": 500000.0,
-  "collateralAmount": 0.0,
-  "receiveableAmount": 0.0,
-  "utilizedAmount": 15000.0,
-  "blockedPayoutAmount": 0.0,
-  "withdrawableBalance": 485000.0
-}
-```
-
----
-
-## 8. Historical Candle Data
-
-**Endpoint**: `POST /charts/historical`
-
-**Request Body**:
-```json
-{
-  "securityId": "string",
-  "exchangeSegment": "NSE_EQ | NSE_FNO | IDX_I",
-  "instrument": "INDEX | EQUITY | FUTIDX | OPTIDX",
-  "expiryCode": 0,
-  "fromDate": "2024-01-01",
-  "toDate": "2024-01-31"
-}
-```
-
-**Response**:
-```json
-{
-  "open":   [21500.0, 21550.0],
-  "high":   [21600.0, 21620.0],
-  "low":    [21480.0, 21510.0],
-  "close":  [21580.0, 21600.0],
-  "volume": [1200000, 980000],
-  "timestamp": [1704172200, 1704258600]
-}
-```
-
----
-
-## 9. Intraday Candle Data
-
-**Endpoint**: `POST /charts/intraday`
-
-**Request Body**:
-```json
-{
-  "securityId": "string",
-  "exchangeSegment": "NSE_EQ",
   "instrument": "INDEX",
-  "interval": "1 | 5 | 15 | 25 | 60",
-  "fromDate": "2024-01-15",
-  "toDate": "2024-01-15"
+  "interval": "1",
+  "oi": true,
+  "fromDate": "2024-09-11 09:15:00",
+  "toDate": "2024-09-12 15:30:00"
 }
 ```
 
----
-
-## 10. Market Quote (LTP)
-
-**Endpoint**: `POST /marketfeed/ltp`
-
-**Request Body**:
+### Response
 ```json
 {
-  "NSE_FNO": ["securityId1", "securityId2"]
+  "open": [3750, ...],
+  "high": [3750, ...],
+  "low": [3750, ...],
+  "close": [3750, ...],
+  "volume": [166, ...],
+  "timestamp": [1328845020, ...],
+  "open_interest": [0, ...]
 }
 ```
 
-**Response**:
+## 2. Daily Historical Data
+`POST https://api.dhan.co/v2/charts/historical`
+
+**Usage**: Used for long-term trend analysis and daily-level backtesting.
+
+## 3. Expired Options Data
+`POST https://api.dhan.co/v2/charts/rollingoption`
+
+**Usage**: Core endpoint for backtesting historical option strategies.
+
+### Request
 ```json
 {
-  "status": "success",
-  "data": {
-    "NSE_FNO": {
-      "securityId1": { "last_price": 148.75 }
-    }
-  }
-}
-```
-
----
-
-## 11. Option Chain
-
-**Endpoint**: `GET /optionchain`
-
-**Query Params**: `UnderlyingScrip`, `UnderlyingSeg`, `Expiry`
-
-**Response**: Full option chain with bid/ask, OI, IV for each strike.
-
----
-
-## 12. WebSocket Feed (Live Data)
-
-**Connection**: `wss://api-feed.dhan.co`
-
-**Subscription Message**:
-```json
-{
-  "RequestCode": 15,
-  "InstrumentCount": 1,
-  "InstrumentList": [
-    {
-      "ExchangeSegment": "NSE_FNO",
-      "SecurityId": "string"
-    }
-  ]
-}
-```
-
-**Tick Message Received**:
-```json
-{
-  "type": "ticker",
+  "securityId": "13",
   "exchangeSegment": "NSE_FNO",
-  "securityId": "string",
-  "LTP": 148.75,
-  "LTQ": 50,
-  "ATP": 147.20,
-  "volume": 125000,
-  "OI": 980000,
-  "timestamp": 1704172245
+  "instrument": "OPTIDX",
+  "expiryFlag": "WEEK",
+  "expiryCode": 1,
+  "strike": "ATM", // or ATM+1, ATM-1 etc.
+  "drvOptionType": "CALL",
+  "requiredData": ["open", "high", "low", "close", "iv", "volume", "strike", "oi", "spot"],
+  "fromDate": "2024-09-01",
+  "toDate": "2024-09-05"
 }
 ```
 
----
+### Response Mapping
+- System maps `CALL` → `ce` and `PUT` → `pe` in the response data object.
+- `expiryCode`: `0` for current expiry, `1` for next expiry (mandatory).
+- `strike`: Offset based (e.g. `ATM`, `ATM+1`, `ATM-1`).
+- `requiredData`: Must include `iv`, `volume`, `strike`, `oi`, `spot` for full strategy support.
 
-## Security ID Mapping (Key Symbols)
 
-| Symbol      | Segment | Security ID |
-|-------------|---------|-------------|
-| NIFTY 50    | IDX_I   | 13          |
-| BANKNIFTY   | IDX_I   | 25          |
-| FINNIFTY    | IDX_I   | 27          |
+## 4. Live Market Data (WebSocket)
+`wss://api-feed.dhan.co`
 
-Option security IDs must be looked up dynamically from the option chain API.
-
----
-
-## Rate Limits
-
-- REST API: 10 requests/second per client ID
-- WebSocket: 1 connection per client ID; max 100 instrument subscriptions
-- Historical data: 20 requests/minute
-
-Implement exponential backoff on HTTP 429 responses.
+**Usage**: Real-time LTP (Last Traded Price) updates during live trading sessions.
+- System subscribes to Index/Option ticks.
+- `CandleAggregator` builds live candles from these ticks.

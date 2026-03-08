@@ -2,6 +2,7 @@
 
 require 'logger'
 require 'json'
+require 'time'
 
 module Utils
   # Structured JSON logger

@@ -1,215 +1,110 @@
-# NSE Options Algorithmic Trading System
+# 📊 NSE/BSE Options Production Trading System
 
-A modular, event-driven algorithmic trading system for buying NSE options
-intraday, integrated with the DhanHQ brokerage API. Built for both live
-trading and historical backtesting with full live/backtest parity.
+A battle-tested, professional-grade framework for intraday options trading on Indian markets (NIFTY, BANKNIFTY, SENSEX) using the DhanHQ API. This system supports both high-fidelity historical backtesting and live paper/live trading with strict risk enforcement.
 
----
+## 🚀 Key Features
 
-## Architecture Overview
+- **7-State Deterministic FSM**: A rigid Finite State Machine (IDLE → SIGNAL → ENTRY → OPEN → MGMT → EXIT → CLOSE) ensures zero look-ahead bias and production-safe execution.
+- **DhanHQ V2 Integration**: Deep integration with DhanHQ's expired options API, featuring 30-day automatic chunking, retry logic, and support for IV, OI, and Spot data.
+- **Production Risk Engine**:
+  - **Dynamic Position Sizing**: Max 2.5% equity risk per trade.
+  - **Regulatory Compliance**: Automatic STT (0.05%) and Margin (30%) calculation.
+  - **Hard Stops**: 1.5% mandatory stop-loss and 3:15 PM IST hard market exit.
+- **Greeks Engine**: Real-time Black-Scholes calculations (Delta, Gamma, Vega, Theta) via Node.js bridge.
+- **Multi-Strike Analysis**: Orchestrator for simultaneous backtesting across ATM, ITM, and OTM strikes with unified reporting.
 
-```
-EventBus (pub/sub)
-    │
-    ├── MarketData  ←→  DhanHQ API (REST + WebSocket)
-    ├── Indicators  ←   EMA, RSI, ATR, VIX
-    ├── Strategies  ←   EMA Crossover, ORB, VIX Spike Reversal
-    ├── Execution   →   RiskEngine → OrderManager → DhanHQ
-    └── Backtest    →   CandleReplay → PnlCalculator → Reports
-```
+## 🛠 Tech Stack
 
-Full architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **Backend**: Ruby 3.2+ (Core simulation and execution logic)
+- **Real-time Engine**: Node.js (High-precision Greeks and IV calculations)
+- **Data**: DhanHQ API V2
+- **Testing**: RSpec with VCR for reliable API mocking
 
----
+## 📖 Documentation
 
-## Quick Start
+- [00_START_HERE](00_START_HERE.txt)
+- [Quick Reference](QUICK_REFERENCE.md)
+- [Implementation Guide](IMPLEMENTATION_GUIDE.md)
+- [Architecture Details](ARCHITECTURE.md)
+- [Greeks Calculator Guide](GREEKS_GUIDE.md)
+- [DHAN API Mapping](DHAN_API_MAPPING.md)
+- [DHAN API Visual Guide](DHAN_API_VISUAL_GUIDE.md)
 
-### Prerequisites
+## 📖 Quick Start
 
-- Ruby 3.2+
-- DhanHQ account with API access enabled
-
-### Setup
-
+### 1. Setup Environment
 ```bash
-git clone <repo-url> algo_trading_system
-cd algo_trading_system
-
-# Install dependencies
-bundle install
-
-# Configure credentials
 cp .env.example .env
-# Edit .env with your DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN
+# Add your AUTH_SERVER_BEARER_TOKEN (to fetch Dhan tokens)
 ```
 
-### Run a Backtest
-
+### 2. Synchronize Authentication
 ```bash
-bundle exec ruby examples/backtest_example.rb
+bin/setup_auth
+# This fetches the latest DhanHQ access_token and client_id automatically
 ```
 
-Or with CLI (after Phase 8 is implemented):
-
+### 3. Run a Backtest
 ```bash
-bundle exec ruby bin/backtest --strategy ema_crossover \
-  --symbol NIFTY --from 2024-01-01 --to 2024-03-31
+# Run with custom capital (e.g. ₹5 Lakhs)
+bin/backtest --underlying sensex --capital 500000 --strategy ema_crossover
+
+# Compare all available strategies
+rake backtest:compare
+
+# OR use the CLI for real historical data
+bin/backtest --underlying nifty --strategy rsi_macd --from 2024-01-01 --to 2024-01-31
 ```
 
-### Live Paper Trading
+## ⚙️ Configuration
 
+The system's behavior and risk limits can be adjusted in two primary locations:
+
+### 1. Global Settings (`config/settings.yml`)
+Used for live trading and system-wide defaults:
+- `capital`: Default trading equity (e.g., `5000000`).
+- `risk_per_trade_pct`: Maximum equity risk per position (default `2.5%`).
+
+### 2. Backtest CLI (`bin/backtest`)
+Override defaults for specific simulation runs:
+- `--capital` or `-c`: Set starting capital for the session.
+- `--interval` or `-i`: Set the spot data timeframe.
+
+### 4. Start Live Trading (Paper Mode)
 ```bash
-TRADING_ENV=paper bundle exec ruby bin/trade --strategy ema_crossover
+rake trade -- --strategy rsi_macd --symbol NIFTY
 ```
 
-### Run Tests
+## 📊 Backtest Reports
+
+The system generates unified reports in `backtest_results/` for every run:
+- **`summary_*.json`**: Complete metrics (Win Rate, Sharpe, Max DD, etc.).
+- **`trades_*.csv`**: Detailed trade journal for spreadsheet analysis.
+- **`dashboard_*.html`**: Interactive visual dashboard for visual verification.
+
+## 🎲 Available Strategies
+
+| Strategy | Logic | Target Market |
+|----------|-------|---------------|
+| `rsi_macd` | Mean reversion using RSI oversold + MACD bullish crossover | Volatile sideways |
+| `bollinger_breakout` | High-momentum breakout of standard deviation bands | Trending |
+| `iv_spike_momentum` | Volatility expansion filter with volume confirmation | News/Earnings |
+| `vwap_breakout` | Institutional trend following using volume-weighted price | High-volume index |
+
+## 🧪 Development & Quality
 
 ```bash
+# Run full test suite
 bundle exec rspec
+
+# Run code quality gate (ruby_mastery)
+rake quality
 ```
 
-### Code Quality (ruby_mastery)
-
-```bash
-# Analyze src/ for violations
-bundle exec ruby_mastery analyze src/
-
-# Apply safe automatic refactors
-bundle exec ruby_mastery refactor src/
-
-# Architecture health score (target > 80)
-bundle exec ruby_mastery architecture score src/
-
-# Visualize module dependency graph
-bundle exec ruby_mastery architecture graph src/
-
-# Generate AI agent context summary
-bundle exec ruby_mastery architect src/
-```
+## ⚠️ Risk Warnings
+- **STT Calculation**: STT is calculated at 0.05% on total **Contract Value**, not just margin.
+- **Time Cutoff**: System forces all intraday positions to close at 15:15 IST.
+- **Look-ahead Bias**: The FSM is designed to fill orders only on the *next* available bar open.
 
 ---
-
-## Repo Structure
-
-```
-algo_trading_system/
-│
-├── AGENT.md                  ← AI agent instructions (read first)
-├── AI_CONTEXT.md             ← Quick reference for agents
-├── SYSTEM_PROMPT.md          ← Trading system identity and mandate
-├── ARCHITECTURE.md           ← System design and component diagram
-├── IMPLEMENTATION_GUIDE.md   ← Coding standards and data structures
-├── DHAN_API_MAPPING.md       ← Exact DhanHQ API payloads
-├── DOMAIN_KNOWLEDGE.md       ← NSE market ground truth
-├── STRATEGY_RULES.md         ← Entry/exit rules for all strategies
-├── TASKS.md                  ← Ordered implementation checklist
-├── bootstrap_prompt.txt      ← Single prompt to start an AI agent
-│
-├── config/
-│   ├── settings.yml          ← Runtime config (capital, risk, symbols)
-│   └── strategies.yml        ← Per-strategy parameter overrides
-│
-├── specs/
-│   ├── api_contract.md       ← Inter-module interface contracts
-│   └── strategy_rules.md     ← Formal strategy state machine specs
-│
-├── examples/
-│   └── backtest_example.rb   ← Runnable backtest example
-│
-├── research/
-│   └── options_strategy_notes.md  ← Strategy development notes
-│
-├── src/                      ← All generated code lives here
-│   ├── api/                  ← DhanHQ API client
-│   ├── market_data/          ← Candle loading, tick normalization
-│   ├── indicators/           ← EMA, RSI, ATR, VIX
-│   ├── strategies/           ← Pluggable strategy modules
-│   ├── execution/            ← Order manager, risk engine
-│   ├── backtest/             ← Backtest engine and reports
-│   └── utils/                ← EventBus, logger, config, time helpers
-│
-├── spec/                     ← RSpec tests
-│   └── fixtures/candles/     ← Candle fixture data for tests
-│
-├── bin/
-│   ├── trade                 ← Live trading entry point
-│   └── backtest              ← Backtest entry point
-│
-├── backtest_results/         ← Generated backtest CSV/JSON reports
-├── Gemfile
-├── .env.example
-└── .gitignore
-```
-
----
-
-## Implemented Strategies
-
-| Strategy           | Description                          | Timeframe | Status  |
-|--------------------|--------------------------------------|-----------|---------|
-| `ema_crossover`    | EMA 9/21 crossover with RSI filter   | 5m        | Planned |
-| `orb_strategy`     | Opening Range Breakout (first 30min) | 5m        | Planned |
-| `vix_spike_strategy`| VIX spike fear/reversal play        | 15m       | Planned |
-
----
-
-## Risk Management
-
-- **Per-trade risk**: 1% of capital (configurable)
-- **Daily loss limit**: 3% — trading halts automatically
-- **Max open positions**: 3 simultaneously
-- **Stop-loss**: mandatory on every trade, enforced by `RiskEngine`
-- **Exit-only window**: 15:20–15:30 IST — all positions auto-closed
-
----
-
-## Using This Repo with AI Agents
-
-This is a spec-driven repository designed for AI-assisted code generation.
-
-**With Claude Code:**
-```
-Analyze this repository. Follow AGENT.md. Implement the project in src/.
-```
-
-**With Cursor:**
-```
-Read the entire repository. Follow AGENT.md instructions.
-Then implement the trading system architecture starting with src/market_data and src/indicators.
-```
-
-**Bootstrap prompt** (paste `bootstrap_prompt.txt` to start any agent):
-```bash
-cat bootstrap_prompt.txt | pbcopy  # then paste into your AI tool
-```
-
----
-
-## Configuration
-
-Edit `config/settings.yml` for runtime parameters:
-
-```yaml
-capital: 500000          # Total capital in INR
-risk_per_trade_pct: 1.0  # Risk 1% per trade
-max_daily_loss_pct: 3.0  # Halt at 3% daily loss
-```
-
-Edit `config/strategies.yml` for strategy-specific parameters.
-
----
-
-## Environment Variables
-
-| Variable            | Required | Description                    |
-|---------------------|----------|--------------------------------|
-| `DHAN_CLIENT_ID`    | Yes      | Your DhanHQ client ID          |
-| `DHAN_ACCESS_TOKEN` | Yes      | Your DhanHQ API access token   |
-| `TRADING_ENV`       | No       | `paper` (default) or `live`    |
-| `LOG_LEVEL`         | No       | `debug`, `info`, `warn`, `error` |
-
----
-
-## License
-
-MIT
+**Version**: 1.0 Production-Ready | **Last Updated**: March 2026
