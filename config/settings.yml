@@ -1,0 +1,31 @@
+---
+# Runtime configuration for the algo trading system.
+# All strategy thresholds and risk parameters live here.
+# Secrets (API keys) go in .env — never here.
+
+capital: 500000              # Total capital in INR
+risk_per_trade_pct: 1.0      # % of capital risked per trade
+max_daily_loss_pct: 3.0      # Halt trading if daily loss exceeds this
+max_positions: 3             # Maximum concurrent open positions
+
+broker: dhan
+trading_env: paper           # paper | live (override with TRADING_ENV env var)
+
+symbols:
+  - NIFTY
+  - BANKNIFTY
+  - FINNIFTY
+
+timeframe: "5m"              # Default candle timeframe
+
+market_hours:
+  open: "09:15"
+  trade_start: "09:20"       # Skip first 5 minutes
+  trade_end: "15:20"         # No new entries after this
+  close: "15:30"
+
+slippage_pct: 0.05           # % slippage added to fill price in backtest
+brokerage_pct: 0.03          # % all-in cost per trade leg in backtest
+
+log_level: info              # debug | info | warn | error
+log_format: json             # json | text
