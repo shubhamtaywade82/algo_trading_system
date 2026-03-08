@@ -32,6 +32,9 @@ gem "csv", "~> 3.2"
 # Statistical methods for arrays
 gem "enumerable-statistics", "~> 2.0"
 
+# Terminal tables for reports
+gem "terminal-table", "~> 3.0"
+
 group :development do
   # Static analysis, refactoring engine, and architecture monitoring
   gem "ruby_mastery", github: "shubhamtaywade82/ruby_mastery"

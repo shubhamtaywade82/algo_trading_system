@@ -27,6 +27,11 @@ task :backtest do
   run_script('backtest')
 end
 
+desc 'Compare all strategies'
+task 'backtest:compare' do
+  sh 'bundle exec ruby examples/strategy_comparison.rb'
+end
+
 desc 'Run live trading (paper mode default)'
 task :trade do
   run_script('trade')

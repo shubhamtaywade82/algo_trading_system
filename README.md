@@ -49,6 +49,9 @@ bin/setup_auth
 # Run the professional example with synthetic volatile data
 ruby examples/backtest_example.rb
 
+# Compare all available strategies
+rake backtest:compare
+
 # OR use the CLI for real historical data
 bin/backtest --underlying nifty --strategy rsi_macd --from 2024-01-01 --to 2024-01-31
 ```
