@@ -40,7 +40,7 @@ module Backtest
         from_date: Date.parse(config[:from_date]),
         to_date: Date.parse(config[:to_date]),
         option_type: config[:option_type] || 'CALL',
-        strikes: config[:strikes] || ['ATM', 'ATM+100', 'ATM-100'],
+        strikes: config[:strikes] || ['ATM', 'ATM+1', 'ATM-1'],
         interval: config[:interval].to_s,
         expiry_flag: config[:expiry_flag] || 'WEEK'
       )
@@ -105,7 +105,8 @@ module Backtest
           close: data[:close][idx],
           volume: data[:volume][idx],
           iv: data[:iv][idx],
-          spot: data[:spot][idx]
+          spot: data[:spot][idx],
+          strike: data[:strike][idx]
         }
       end
 

@@ -11,10 +11,10 @@ class MockDhanApiClient < Api::DhanApiClient
     start_time = Time.parse("#{from_date} 09:15:00 +0530")
     
     data = {}
-    ['ATM', 'ATM+100', 'ATM-100'].each do |strike|
+    ['ATM', 'ATM+1', 'ATM-1'].each do |strike|
       strike_data = {
         timestamp: [], open: [], high: [], low: [], close: [],
-        iv: [], oi: [], volume: [], spot: []
+        iv: [], oi: [], volume: [], spot: [], strike: []
       }
       current_price = 350.0 + rand(50)
       
@@ -39,6 +39,7 @@ class MockDhanApiClient < Api::DhanApiClient
         strike_data[:iv] << (15.0 + rand(10.0))
         strike_data[:oi] << (100000 + rand(50000))
         strike_data[:spot] << (22000.0 + (i * 0.5))
+        strike_data[:strike] << 22000.0
       end
       data["#{strike}_CALL"] = strike_data
     end
@@ -57,7 +58,7 @@ CONFIG = {
   from_date: '2024-01-01',
   to_date: '2024-01-01',
   option_type: 'CALL',
-  strikes: ['ATM', 'ATM+100', 'ATM-100'],
+  strikes: ['ATM', 'ATM+1', 'ATM-1'],
   interval: '1',
   expiry_flag: 'WEEK',
   access_token: 'MOCK_TOKEN'

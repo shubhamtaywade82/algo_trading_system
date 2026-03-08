@@ -34,8 +34,9 @@ curl --request POST \
 
 ## Strike Selection Logic
 - `ATM`: At-the-money.
-- `ATM+n`: OTM Call / ITM Put (e.g., `ATM+100` for Nifty).
-- `ATM-n`: ITM Call / OTM Put (e.g., `ATM-100` for Nifty).
+- `ATM+n`: Next OTM strikes (e.g., `ATM+1`, `ATM+2`).
+- `ATM-n`: Next ITM strikes (e.g., `ATM-1`, `ATM-2`).
+- Supports up to `ATM±10` for Index near expiry.
 
 ## Data Flow Diagram
 ```

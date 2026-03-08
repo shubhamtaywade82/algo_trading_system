@@ -12,7 +12,7 @@ options = {
   from_date: (Date.today - 30).to_s,
   to_date: Date.today.to_s,
   option_type: 'CALL',
-  strikes: ['ATM', 'ATM+100', 'ATM-100'],
+  strikes: ['ATM', 'ATM+1', 'ATM-1'],
   interval: '1',
   capital: 1_000_000
 }

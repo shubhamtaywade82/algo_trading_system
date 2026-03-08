@@ -70,32 +70,21 @@ module Api
             'expiryCode' => expiry_code.to_i, # Try integer again with string key
             'strike' => strike,
             'drvOptionType' => option_type,
-            'requiredData' => %w[open high low close iv oi volume spot],
+            'requiredData' => %w[open high low close iv volume strike oi spot],
             'fromDate' => chunk_from.to_s,
             'toDate' => chunk_to.to_s
           }
           
           response = post_with_retry('/v2/charts/rollingoption', payload)
-          if response[:status] == 'success' || response[:data]
-            Utils::Logger.debug("api.data_received", strike: strike, data_keys: response[:data]&.keys)
-          else
-            Utils::Logger.warn("api.no_data_for_strike", strike: strike, response: response)
-          end
           
           # Map CALL/PUT to ce/pe for parsing
           api_type_key = option_type.to_s.upcase == 'CALL' ? :ce : :pe
           strike_data = response.dig(:data, api_type_key)
           
-          if strike_data && strike_data[:timestamp]
-            Utils::Logger.debug("api.strike_data_found", strike: strike, count: strike_data[:timestamp].size)
-          else
-            Utils::Logger.warn("api.strike_data_missing", strike: strike, key: api_type_key)
-          end
-          
           next unless strike_data && strike_data[:timestamp] && strike_data[:timestamp].any?
 
           strike_key = "#{strike}_#{option_type}"
-          all_data[strike_key] ||= { timestamp: [], open: [], high: [], low: [], close: [], iv: [], oi: [], volume: [], spot: [] }
+          all_data[strike_key] ||= { timestamp: [], open: [], high: [], low: [], close: [], iv: [], oi: [], volume: [], spot: [], strike: [] }
           
           merge_strike_data(all_data[strike_key], strike_data)
         end
@@ -113,7 +102,6 @@ module Api
     def post_with_retry(path, payload)
       retries = 0
       begin
-        Utils::Logger.debug("api.sending_request", path: path, payload: payload)
         response = connection.post(path) do |req|
           req.body = payload
         end
@@ -145,7 +133,7 @@ module Api
     end
 
     def merge_strike_data(target, source)
-      %i[timestamp open high low close iv oi volume spot].each do |key|
+      %i[timestamp open high low close iv oi volume spot strike].each do |key|
         target[key].concat(source[key] || []) if source[key]
       end
     end
