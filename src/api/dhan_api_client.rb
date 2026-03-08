@@ -55,7 +55,7 @@ module Api
     end
 
     # Legacy/Specific for expired options backtesting
-    def fetch_expired_options(underlying: :nifty, from_date:, to_date:, interval: '1', option_type: 'CALL', strikes: ['ATM'], expiry_flag: 'WEEK', expiry_code: 0)
+    def fetch_expired_options(underlying: :nifty, from_date:, to_date:, interval: '1', option_type: 'CALL', strikes: ['ATM'], expiry_flag: 'WEEK', expiry_code: 1)
       security_id = map_underlying_id(underlying)
       all_data = {}
 
@@ -67,7 +67,7 @@ module Api
             'securityId' => security_id.to_s,
             'instrument' => 'OPTIDX',
             'expiryFlag' => expiry_flag,
-            'expiryCode' => expiry_code.to_i,
+            'expiryCode' => expiry_code.to_i, # Try integer again with string key
             'strike' => strike,
             'drvOptionType' => option_type,
             'requiredData' => %w[open high low close iv oi volume spot],
@@ -76,7 +76,15 @@ module Api
           }
           
           response = post_with_retry('/v2/charts/rollingoption', payload)
-          strike_data = response.dig(:data, option_type.downcase.to_sym)
+          if response[:status] == 'success' || response[:data]
+            Utils::Logger.debug("api.data_received", strike: strike, data_keys: response[:data]&.keys)
+          else
+            Utils::Logger.warn("api.no_data_for_strike", strike: strike, response: response)
+          end
+          
+          # Map CALL/PUT to ce/pe for parsing
+          api_type_key = option_type.to_s.upcase == 'CALL' ? :ce : :pe
+          strike_data = response.dig(:data, api_type_key)
           next unless strike_data
 
           strike_key = "#{strike}_#{option_type}"
@@ -98,8 +106,9 @@ module Api
     def post_with_retry(path, payload)
       retries = 0
       begin
+        Utils::Logger.debug("api.sending_request", path: path, payload: payload)
         response = connection.post(path) do |req|
-          req.body = payload.to_json
+          req.body = payload
         end
 
         if response.success?
