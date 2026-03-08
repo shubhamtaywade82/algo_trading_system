@@ -52,6 +52,11 @@ build-iPhoneSimulator/
 # unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
 .rvmrc
 
+# Backtest results
+/backtest_results/*.json
+/backtest_results/*.csv
+/backtest_results/*.html
+
 # Used by RuboCop. Remote config files pulled in from inherit_from directive.
 # .rubocop-https?--*
 .env

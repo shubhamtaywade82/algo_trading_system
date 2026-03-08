@@ -3,11 +3,9 @@
 require_relative 'utils/config'
 require_relative 'utils/logger'
 require_relative 'utils/time_helpers'
-require_relative 'api/dhan_client'
+require_relative 'api/dhan_api_client'
 require_relative 'api/websocket_feed'
-require_relative 'market_data/tick_normalizer'
-require_relative 'execution/engine'
-require_relative 'strategies/ema_crossover'
+require_relative 'strategies/trading_strategies'
 
 module AlgoTradingSystem
   # Orchestrates live trading session
@@ -20,7 +18,6 @@ module AlgoTradingSystem
       @dependencies = dependencies
 
       setup_api
-      setup_execution
       setup_strategy
     end
 
@@ -49,16 +46,12 @@ module AlgoTradingSystem
       client_id = ENV.fetch('DHAN_CLIENT_ID', 'test')
       token = ENV.fetch('DHAN_ACCESS_TOKEN', 'test')
 
-      @rest_client = @dependencies[:api_client] || Api::DhanClient.new(client_id: client_id, access_token: token)
+      @api_client = @dependencies[:api_client] || Api::DhanApiClient.new(access_token: token)
       @ws = @dependencies[:ws_feed] || Api::WebsocketFeed.new(client_id: client_id, access_token: token)
     end
 
-    def setup_execution
-      @execution = @dependencies[:execution_engine] || Execution::Engine.new(@rest_client)
-    end
-
     def setup_strategy
-      @strategy = @dependencies[:strategy] || Strategies::EmaCrossover.new
+      @strategy = @dependencies[:strategy] || TradingStrategies::StrategyFactory.create(@strategy_name)
     end
   end
 end

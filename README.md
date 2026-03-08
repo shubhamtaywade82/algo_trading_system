@@ -1,43 +1,83 @@
-# 📊 NSE/BSE Options Production Backtesting System
+# 📊 NSE/BSE Options Production Trading System
 
-A professional-grade framework for intraday options buying/selling on Indian markets using DhanHQ API.
+A battle-tested, professional-grade framework for intraday options trading on Indian markets (NIFTY, BANKNIFTY, SENSEX) using the DhanHQ API. This system supports both high-fidelity historical backtesting and live paper/live trading with strict risk enforcement.
 
-## 🚀 Overview
-This system provides high-fidelity simulation of intraday CE/PE trades with strict risk management, minute-level bars, and real-time Greek calculations.
+## 🚀 Key Features
 
-### Key Features
-- **Data Ingestion**: Automatic chunking and fetching of historical expired options data from DhanHQ.
-- **Risk Engine**: Enforces 2.5% max risk per trade, 1.5% mandatory stop-loss, and auto-exit at 3:15 PM IST.
-- **Deterministic Simulation**: A 7-state finite state machine (FSM) for reliable trade execution.
-- **Greeks Support**: Real-time Black-Scholes calculation via Node.js bridge.
-- **Multi-Strike Processing**: Simultaneous backtesting across ATM, ITM, and OTM strikes.
+- **7-State Deterministic FSM**: A rigid Finite State Machine (IDLE → SIGNAL → ENTRY → OPEN → MGMT → EXIT → CLOSE) ensures zero look-ahead bias and production-safe execution.
+- **DhanHQ V2 Integration**: Deep integration with DhanHQ's expired options API, featuring 30-day automatic chunking, retry logic, and support for IV, OI, and Spot data.
+- **Production Risk Engine**:
+  - **Dynamic Position Sizing**: Max 2.5% equity risk per trade.
+  - **Regulatory Compliance**: Automatic STT (0.05%) and Margin (30%) calculation.
+  - **Hard Stops**: 1.5% mandatory stop-loss and 3:15 PM IST hard market exit.
+- **Greeks Engine**: Real-time Black-Scholes calculations (Delta, Gamma, Vega, Theta) via Node.js bridge.
+- **Multi-Strike Analysis**: Orchestrator for simultaneous backtesting across ATM, ITM, and OTM strikes with unified reporting.
 
 ## 🛠 Tech Stack
-- **Backend**: Ruby (simulation engine), Node.js (Greeks calculation)
-- **Data**: DhanHQ Expired Options API
-- **Reporting**: JSON, CSV, and interactive HTML dashboards
 
-## 📖 Documentation
-- [Quick Reference](QUICK_REFERENCE.md)
-- [Implementation Guide](IMPLEMENTATION_GUIDE.md)
-- [Architecture Details](ARCHITECTURE.md)
+- **Backend**: Ruby 3.2+ (Core simulation and execution logic)
+- **Real-time Engine**: Node.js (High-precision Greeks and IV calculations)
+- **Data**: DhanHQ API V2
+- **Testing**: RSpec with VCR for reliable API mocking
 
-## ⚡ Quick Start
-1. Setup environment:
-   ```bash
-   cp .env.example .env
-   # Add your DHAN_ACCESS_TOKEN and AUTH_SERVER_BEARER_TOKEN
-   ```
-2. Run example backtest:
-   ```bash
-   ruby examples/backtest_example.rb
-   ```
+## 📖 Quick Start
 
-## 📊 Sample Output
+### 1. Setup Environment
+```bash
+cp .env.example .env
+# Add your AUTH_SERVER_BEARER_TOKEN (to fetch Dhan tokens)
 ```
-Total Trades:      24
-Win Rate:          66.7%
-Total P&L:         ₹45,320
-Max Drawdown:      -2.15%
-Sharpe Ratio:      1.28
+
+### 2. Synchronize Authentication
+```bash
+bin/setup_auth
+# This fetches the latest DhanHQ access_token and client_id automatically
 ```
+
+### 3. Run a Backtest
+```bash
+# Run the professional example with synthetic volatile data
+ruby examples/backtest_example.rb
+
+# OR use the CLI for real historical data
+bin/backtest --underlying nifty --strategy rsi_macd --from 2024-01-01 --to 2024-01-31
+```
+
+### 4. Start Live Trading (Paper Mode)
+```bash
+rake trade -- --strategy rsi_macd --symbol NIFTY
+```
+
+## 📊 Backtest Reports
+
+The system generates unified reports in `backtest_results/` for every run:
+- **`summary_*.json`**: Complete metrics (Win Rate, Sharpe, Max DD, etc.).
+- **`trades_*.csv`**: Detailed trade journal for spreadsheet analysis.
+- **`dashboard_*.html`**: Interactive visual dashboard for visual verification.
+
+## 🎲 Available Strategies
+
+| Strategy | Logic | Target Market |
+|----------|-------|---------------|
+| `rsi_macd` | Mean reversion using RSI oversold + MACD bullish crossover | Volatile sideways |
+| `bollinger_breakout` | High-momentum breakout of standard deviation bands | Trending |
+| `iv_spike_momentum` | Volatility expansion filter with volume confirmation | News/Earnings |
+| `vwap_breakout` | Institutional trend following using volume-weighted price | High-volume index |
+
+## 🧪 Development & Quality
+
+```bash
+# Run full test suite
+bundle exec rspec
+
+# Run code quality gate (ruby_mastery)
+rake quality
+```
+
+## ⚠️ Risk Warnings
+- **STT Calculation**: STT is calculated at 0.05% on total **Contract Value**, not just margin.
+- **Time Cutoff**: System forces all intraday positions to close at 15:15 IST.
+- **Look-ahead Bias**: The FSM is designed to fill orders only on the *next* available bar open.
+
+---
+**Version**: 1.0 Production-Ready | **Last Updated**: March 2026
