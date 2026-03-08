@@ -1,0 +1,35 @@
+---
+# Per-strategy parameter overrides.
+# These override the defaults defined in each strategy class.
+
+ema_crossover:
+  fast_ema_period: 9
+  slow_ema_period: 21
+  rsi_period: 14
+  rsi_bull_threshold: 50
+  atr_period: 14
+  target_atr_multiplier: 2.0
+  vix_max: 18
+  timeframe: "5m"
+  max_lots: 5
+
+orb_strategy:
+  or_duration_minutes: 30
+  volume_multiplier: 1.5
+  min_rr_ratio: 1.0
+  vix_max: 20
+  time_exit: "14:30"
+  timeframe: "5m"
+  max_lots: 3
+
+vix_spike_strategy:
+  vix_spike_threshold: 18
+  vix_spike_pct_increase: 10.0
+  underlying_drop_pct: 0.5
+  rsi_period: 14
+  rsi_bear_threshold: 40
+  rsi_bull_threshold: 50
+  reversion_vix_drop_pct: 15.0
+  recovery_underlying_pct: 0.3
+  timeframe: "15m"
+  max_lots: 2
