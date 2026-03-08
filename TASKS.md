@@ -1,99 +1,29 @@
-# TASKS — Implementation Checklist
+# TASKS — Implementation Checklist (Production Options Backtesting)
 
-Complete tasks sequentially. Mark each task `[x]` when done.
-After completing each task, update README.md with usage examples.
+## Phase 1 — Data Ingestion & API
+- [x] **T01** — Implement `Api::DhanApiClient` with chunking logic.
+- [x] **T02** — Implement `Api::TokenFetcher` for remote auth.
+- [x] **T03** — Add data validation for timestamp continuity.
 
-**Quality gate**: run `bundle exec ruby_mastery analyze src/` at the end of every
-phase. Fix all violations before starting the next phase.
+## Phase 2 — Simulation Engine
+- [x] **T04** — Implement 7-state FSM in `Backtest::OptionsEngine`.
+- [x] **T05** — Add STT (0.05%) and Margin (30%) calculation.
+- [x] **T06** — Add Position Sizing (Max 2.5% risk) and SL (1.5%).
+- [x] **T07** — Implement Time-based auto-exit at 15:15 IST.
 
----
+## Phase 3 — Strategies & Greeks
+- [x] **T08** — Implement `Strategies::TradingStrategies` collection.
+- [x] **T09** — Create Node.js `greeks_calculator.js` bridge.
+- [x] **T10** — Add IV spike and Volume momentum logic.
 
-## Phase 1 — Core Infrastructure
+## Phase 4 — Orchestration & Reporting
+- [x] **T11** — Implement `Backtest::Orchestrator` for multi-strike runs.
+- [x] **T12** — Add JSON/CSV report generation.
+- [x] **T13** — Create HTML dashboard template.
 
-- [x] **T01** — Create `Gemfile` with all required dependencies
-- [x] **T02** — Create `src/utils/event_bus.rb` — pub/sub event bus
-- [x] **T03** — Create `src/utils/logger.rb` — structured JSON logger
-- [x] **T04** — Create `src/utils/config.rb` — YAML config loader
-- [x] **T05** — Create `src/utils/time_helpers.rb` — IST time utilities, market hours
-- [x] **T06** — Create `config/settings.yml` — default runtime config
-- [x] **T07** — Create `config/strategies.yml` — default strategy parameters
-
----
-
-## Phase 2 — DhanHQ API Client
-
-- [x] **T08** — Create `src/api/dhan_client.rb` — REST client (all endpoints in DHAN_API_MAPPING.md)
-- [x] **T09** — Create `src/api/websocket_feed.rb` — WebSocket subscription and tick dispatch
-- [x] **T10** — Add rate limiting and retry logic to `dhan_client.rb`
-- [x] **T11** — Write RSpec tests for `dhan_client.rb` using VCR cassettes
-
----
-
-## Phase 3 — Market Data
-
-- [x] **T12** — Create `src/market_data/candle_loader.rb` — loads historical + intraday candles
-- [x] **T13** — Create `src/market_data/tick_normalizer.rb` — normalizes raw WebSocket ticks
-- [x] **T14** — Write RSpec tests for candle loader using fixture data
-
----
-
-## Phase 4 — Indicators
-
-- [x] **T15** — Create `src/indicators/indicator_base.rb` — abstract base class
-- [x] **T16** — Create `src/indicators/ema.rb` — EMA with configurable period
-- [x] **T17** — Create `src/indicators/rsi.rb` — RSI with configurable period (default 14)
-- [x] **T18** — Create `src/indicators/atr.rb` — ATR with configurable period (default 14)
-- [x] **T19** — Create `src/indicators/vix_reader.rb` — reads India VIX from market feed
-- [x] **T20** — Write RSpec tests for all indicators using known-output fixture data
-
----
-
-## Phase 5 — Strategies
-
-- [x] **T21** — Create `src/strategies/strategy_base.rb` — abstract strategy base
-- [x] **T22** — Create `src/strategies/ema_crossover.rb` — EMA 9/21 crossover strategy
-- [x] **T23** — Create `src/strategies/orb_strategy.rb` — Opening Range Breakout (first 30 min)
-- [x] **T24** — Create `src/strategies/vix_spike_strategy.rb` — VIX spike reversal strategy
-- [x] **T25** — Write RSpec tests for each strategy using replayed candle sequences
-
----
-
-## Phase 6 — Execution Engine
-
-- [x] **T26** — Create `src/execution/risk_engine.rb` — enforces all risk rules
-- [x] **T27** — Create `src/execution/order_manager.rb` — order creation, modification, cancellation
-- [x] **T28** — Create `src/execution/position_tracker.rb` — tracks open positions and P&L
-- [x] **T29** — Wire execution engine to EventBus (subscribe to strategy signals)
-- [x] **T30** — Write RSpec tests for risk engine (all edge cases)
-
----
-
-## Phase 7 — Backtest Engine
-
-- [x] **T31** — Create `src/backtest/engine.rb` — candle replay loop
-- [x] **T32** — Create `src/backtest/pnl_calculator.rb` — trade-level P&L with slippage + brokerage
-- [x] **T33** — Create `src/backtest/report_generator.rb` — CSV and JSON report output
-- [x] **T34** — Create `examples/backtest_example.rb` — runnable backtest example
-- [x] **T35** — Write RSpec tests for backtest engine (no look-ahead assertion)
-
----
-
-## Phase 8 — Integration & Live Runner
-
-- [x] **T36** — Create `src/live_runner.rb` — wires all modules for live trading session
-- [x] **T37** — Create `bin/trade` — CLI entry point for live session
-- [x] **T38** — Create `bin/backtest` — CLI entry point for running backtests
-- [x] **T39** — End-to-end integration test with paper trading mode
-
----
-
-## Phase 9 — Polish
-
-- [x] **T40** — Add Rake tasks (`rake backtest`, `rake trade`, `rake spec`)
-- [x] **T41** — Update README.md with full usage instructions and examples
-- [x] **T42** — Add `.env.example` with required environment variable keys
-- [x] **T43** — Final code review: ensure no hardcoded secrets, all risk rules enforced
-- [x] **T44** — Run `ruby_mastery analyze src/` — fix all remaining violations
-- [x] **T45** — Run `ruby_mastery architecture score src/` — target score > 80
-- [x] **T46** — Run `ruby_mastery refactor src/` — apply all safe automatic refactors
-- [x] **T47** — Add `rake quality` task that runs `ruby_mastery analyze src/` in CI
+## Phase 7 — Final Production Release
+- [x] **T23** — Implement `OptionsBacktestOrchestrator` for high-level backtest management.
+- [x] **T24** — Consolidate strategies into `TradingStrategies` module with technical indicators (RSI, MACD, BB, ATR).
+- [x] **T25** — Unified reporting (JSON, CSV, HTML) with metrics like Sharpe Ratio and Max Drawdown.
+- [x] **T26** — Verified multi-strike simulation with synthetic volatile data.
+- [x] **T27** — Cleaned up redundant legacy code from development phases.
