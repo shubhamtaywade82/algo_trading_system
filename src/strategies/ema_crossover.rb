@@ -17,7 +17,14 @@ module Strategies
 
       return :hold unless indicators_ready?(ema_fast, ema_slow, rsi)
 
-      @current_signal = generate_signal(ema_fast, ema_slow, rsi)
+      signal = generate_signal(ema_fast, ema_slow, rsi)
+      
+      # Log transition
+      if signal != @current_signal
+        Utils::Logger.info('strategy.signal_changed', from: @current_signal, to: signal) if defined?(Utils::Logger)
+      end
+      
+      @current_signal = signal
     end
 
     def signal
@@ -31,18 +38,13 @@ module Strategies
     end
 
     def generate_signal(fast, slow, rsi)
-      return :buy if crossover_buy?(fast, slow, rsi)
-      return :sell if crossover_sell?(fast, slow)
-
-      :hold
-    end
-
-    def crossover_buy?(fast, slow, rsi)
-      fast.value > slow.value && rsi.value > parameters[:rsi_threshold]
-    end
-
-    def crossover_sell?(fast, slow)
-      fast.value < slow.value
+      if fast.value > slow.value && rsi.value > parameters[:rsi_threshold]
+        :buy
+      elsif fast.value < slow.value
+        :sell
+      else
+        @current_signal # Maintain previous signal if no new crossover
+      end
     end
 
     def default_parameters
