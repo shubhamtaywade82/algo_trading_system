@@ -46,8 +46,8 @@ bin/setup_auth
 
 ### 3. Run a Backtest
 ```bash
-# Run the professional example with synthetic volatile data
-ruby examples/backtest_example.rb
+# Run with custom capital (e.g. ₹5 Lakhs)
+bin/backtest --underlying sensex --capital 500000 --strategy ema_crossover
 
 # Compare all available strategies
 rake backtest:compare
@@ -55,6 +55,20 @@ rake backtest:compare
 # OR use the CLI for real historical data
 bin/backtest --underlying nifty --strategy rsi_macd --from 2024-01-01 --to 2024-01-31
 ```
+
+## ⚙️ Configuration
+
+The system's behavior and risk limits can be adjusted in two primary locations:
+
+### 1. Global Settings (`config/settings.yml`)
+Used for live trading and system-wide defaults:
+- `capital`: Default trading equity (e.g., `5000000`).
+- `risk_per_trade_pct`: Maximum equity risk per position (default `2.5%`).
+
+### 2. Backtest CLI (`bin/backtest`)
+Override defaults for specific simulation runs:
+- `--capital` or `-c`: Set starting capital for the session.
+- `--interval` or `-i`: Set the spot data timeframe.
 
 ### 4. Start Live Trading (Paper Mode)
 ```bash

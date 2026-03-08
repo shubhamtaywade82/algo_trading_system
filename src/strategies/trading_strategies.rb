@@ -8,14 +8,14 @@ require_relative '../utils/greeks_wrapper'
 module TradingStrategies
   # Base strategy class - Signals on SPOT, Executes on PREMIUM
   class BaseStrategy
-    def initialize(lookback_period: 14)
+    def initialize(lookback_period: 20)
       @lookback_period = lookback_period
       @history = []
     end
 
     def add_bar(bar)
       @history << bar
-      @history = @history.last(@lookback_period + 40) if @history.length > @lookback_period + 40
+      @history = @history.last(@lookback_period + 100) if @history.length > @lookback_period + 100
     end
 
     def signal
@@ -29,7 +29,7 @@ module TradingStrategies
       @history.map { |b| b[:spot] || b[:close] }
     end
 
-    def rsi(period = @lookback_period)
+    def rsi(period = 14)
       return nil if spot_prices.length < period + 1
       calculate_rsi_on(spot_prices, period)
     end
@@ -42,6 +42,19 @@ module TradingStrategies
     def ema(period)
       return nil if spot_prices.length < period
       calculate_ema(spot_prices, period).last
+    end
+
+    def bollinger_bands(period = 20, dev = 2)
+      return nil if spot_prices.length < period
+      prices = spot_prices.last(period)
+      sma = prices.sum / period.to_f
+      variance = prices.map { |p| (p - sma)**2 }.sum / period.to_f
+      std_dev = Math.sqrt(variance)
+      {
+        middle: sma,
+        upper: sma + (dev * std_dev),
+        lower: sma - (dev * std_dev)
+      }
     end
 
     private
@@ -111,11 +124,57 @@ module TradingStrategies
     end
   end
 
+  # Bollinger Breakout (Signals on Spot)
+  class BollingerBreakout < BaseStrategy
+    def signal
+      bands = bollinger_bands(20, 2)
+      last_price = spot_prices.last
+      return { action: 'HOLD' } if bands.nil? || last_price.nil?
+
+      if last_price > bands[:upper]
+        { action: 'BUY', direction: 'LONG', reason: "Spot Price Breakout Upper BB" }
+      elsif last_price < bands[:lower]
+        { action: 'SELL', direction: 'SHORT', reason: "Spot Price Breakdown Lower BB" }
+      else
+        { action: 'HOLD' }
+      end
+    end
+  end
+
+  # Supertrend (Approximate for Spot)
+  class Supertrend < BaseStrategy
+    def initialize(period: 10, multiplier: 3)
+      super(lookback_period: period)
+      @multiplier = multiplier
+      @prev_trend = nil
+    end
+
+    def signal
+      return { action: 'HOLD' } if @history.length < @lookback_period
+      
+      # Simplified trend following
+      src = spot_prices.last
+      short_ema = ema(10)
+      long_ema = ema(30)
+      
+      return { action: 'HOLD' } if short_ema.nil? || long_ema.nil?
+
+      if short_ema > long_ema
+        { action: 'BUY', direction: 'LONG', reason: "Supertrend-like Bullish EMA" }
+      elsif short_ema < long_ema
+        { action: 'SELL', direction: 'SHORT', reason: "Supertrend-like Bearish EMA" }
+      else
+        { action: 'HOLD' }
+      end
+    end
+  end
+
   class StrategyFactory
     STRATEGIES = {
       rsi_macd: RSIMACDReversal,
       ema_crossover: EmaCrossover,
-      # Other strategies follow similar Spot-based logic...
+      bollinger_breakout: BollingerBreakout,
+      supertrend: Supertrend
     }.freeze
 
     def self.create(type)

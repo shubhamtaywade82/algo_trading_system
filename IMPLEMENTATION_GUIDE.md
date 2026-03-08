@@ -28,6 +28,20 @@ The `Backtest::OptionsEngine` handles the deterministic FSM:
 ### STT & Charges
 STT is calculated at 0.05% on **Contract Value** (Price × Lot Size), not just the margin.
 
+## ⚙️ Configuration & Risk Control
+
+### Starting Capital
+The starting capital directly affects position sizing and margin validation. It can be set in three ways (ordered by precedence):
+1. **CLI Argument**: `bin/backtest --capital 500000`
+2. **Backtest Script Default**: Modify the `options[:capital]` value in `bin/backtest`.
+3. **Global Config**: Set the `capital` key in `config/settings.yml`.
+
+### Risk Invariants
+The `Backtest::OptionsBacktestEngine` enforces strict risk rules:
+- **Position Sizing**: Automatically risks 2.5% of current equity per trade (set via `DEFAULT_POSITION_SIZE_PCT`).
+- **Margin Check**: Verifies that (Premium × Quantity × 30%) + STT is less than current equity.
+- **Theta Decay Exit**: A built-in safety exit that triggers if a position is held for 2+ minutes and price moves 2% against the entry.
+
 ## 🧪 Greeks Calculation
 The Node.js bridge calculates Black-Scholes Greeks:
 ```javascript

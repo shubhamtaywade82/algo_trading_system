@@ -5,7 +5,8 @@
 | Task | Command |
 |------|---------|
 | Setup Auth | `bin/setup_auth` |
-| Run Backtest | `rake backtest` |
+| Run Backtest | `bin/backtest --underlying nifty` |
+| Backtest w/ Capital | `bin/backtest -u nifty -c 500000` |
 | Run Live (Paper) | `rake trade` |
 | Run Code Quality | `rake quality` |
 | Run Unit Tests | `bundle exec rspec` |
