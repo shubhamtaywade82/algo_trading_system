@@ -16,6 +16,7 @@ namespace :options do
     require 'date'
     require 'csv'
     require 'ostruct'
+    require 'dotenv/load'
     require_relative '../../src/api/dhan_api_client'
 
     weeks    = (args[:weeks]  || 12).to_i
@@ -32,13 +33,16 @@ namespace :options do
 
     # ── helpers ─────────────────────────────────────────────────────────────────
 
-    def last_thursday(date)
-      (date.wday - 4) % 7 == 0 ? date : date - ((date.wday - 4) % 7).days
+    # NIFTY = Thursday (4), SENSEX = Friday (5)
+    def last_expiry_day(date, symbol)
+      target_wday = symbol == 'SENSEX' ? 5 : 4
+      diff = (date.wday - target_wday) % 7
+      date - diff
     end
 
-    def expiry_windows(weeks)
+    def expiry_windows(weeks, symbol)
       today          = Date.today
-      current_expiry = last_thursday(today)
+      current_expiry = last_expiry_day(today, symbol)
       weeks.times.map do |i|
         expiry = current_expiry - (i * 7)
         { expiry: expiry, from: expiry - 6, to: expiry }
@@ -181,6 +185,19 @@ namespace :options do
     # ── main ─────────────────────────────────────────────────────────────────────
 
     access_token = ENV['DHAN_ACCESS_TOKEN']
+    if access_token.nil? || access_token.empty?
+      begin
+        puts "🔄 DHAN_ACCESS_TOKEN missing. Attempting to sync with provider..."
+        require_relative '../../src/api/token_fetcher'
+        Api::TokenFetcher.fetch_and_update_env
+        access_token = ENV['DHAN_ACCESS_TOKEN']
+      rescue => e
+        puts "❌ Error: Could not fetch token: #{e.message}"
+        puts "Please ensure AUTH_SERVER_BEARER_TOKEN is set or run 'bin/setup_auth' manually."
+        next
+      end
+    end
+
     unless access_token
       puts "❌ Error: DHAN_ACCESS_TOKEN not set."
       next
@@ -188,12 +205,12 @@ namespace :options do
     api_client = Api::DhanApiClient.new(access_token: access_token)
 
     puts "\n#{'=' * 110}\n📊 INTRADAY OPTIONS BEHAVIOUR ANALYSIS\n#{'=' * 110}"
-    windows = expiry_windows(weeks)
     csv_rows = []
 
     symbols.each do |symbol|
       puts "\n#{B}📈 #{symbol}#{Z}\n#{'═' * 110}"
       all_ce, all_pe = [], []
+      windows = expiry_windows(weeks, symbol)
 
       windows.each do |w|
         from_s, to_s = fmt_date(w[:from]), fmt_date(w[:to])
