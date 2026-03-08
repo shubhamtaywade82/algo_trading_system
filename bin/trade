@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+require_relative '../src/live_runner'
+
+options = {
+  strategy: 'ema_crossover',
+  symbol: 'NIFTY'
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: trade [options]"
+  opts.on("-s", "--strategy NAME", "Strategy to run") { |v| options[:strategy] = v }
+  opts.on("-y", "--symbol SYM", "Trading symbol") { |v| options[:symbol] = v }
+end.parse!
+
+env = ENV.fetch('TRADING_ENV', 'paper')
+runner = AlgoTradingSystem::LiveRunner.new(
+  strategy_name: options[:strategy],
+  symbol: options[:symbol],
+  env: env
+)
+
+Signal.trap("INT") { runner.stop; exit }
+
+runner.start
