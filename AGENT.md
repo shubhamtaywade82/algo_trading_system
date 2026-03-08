@@ -67,6 +67,26 @@ src/
 
 ---
 
+## Code Quality Gate
+
+After completing each phase in `TASKS.md`, run `ruby_mastery` before advancing:
+
+```bash
+# Check for violations (must pass clean)
+bundle exec ruby_mastery analyze src/
+
+# Apply safe automatic refactors
+bundle exec ruby_mastery refactor src/
+
+# Architecture health (target score > 80)
+bundle exec ruby_mastery architecture score src/
+```
+
+Do NOT proceed to the next phase if `ruby_mastery analyze src/` reports violations.
+Fix all issues first.
+
+---
+
 ## Task Execution Order
 
 Follow `TASKS.md` sequentially. Complete each task before starting the next.

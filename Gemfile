@@ -26,6 +26,11 @@ gem "zeitwerk", "~> 2.6"
 # YAML config parsing
 gem "psych", "~> 5.1"
 
+group :development do
+  # Static analysis, refactoring engine, and architecture monitoring
+  gem "ruby_mastery", github: "shubhamtaywade82/ruby_mastery"
+end
+
 group :development, :test do
   # Testing framework
   gem "rspec", "~> 3.13"

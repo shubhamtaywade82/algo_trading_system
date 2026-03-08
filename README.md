@@ -68,6 +68,25 @@ TRADING_ENV=paper bundle exec ruby bin/trade --strategy ema_crossover
 bundle exec rspec
 ```
 
+### Code Quality (ruby_mastery)
+
+```bash
+# Analyze src/ for violations
+bundle exec ruby_mastery analyze src/
+
+# Apply safe automatic refactors
+bundle exec ruby_mastery refactor src/
+
+# Architecture health score (target > 80)
+bundle exec ruby_mastery architecture score src/
+
+# Visualize module dependency graph
+bundle exec ruby_mastery architecture graph src/
+
+# Generate AI agent context summary
+bundle exec ruby_mastery architect src/
+```
+
 ---
 
 ## Repo Structure

@@ -3,6 +3,9 @@
 Complete tasks sequentially. Mark each task `[x]` when done.
 After completing each task, update README.md with usage examples.
 
+**Quality gate**: run `bundle exec ruby_mastery analyze src/` at the end of every
+phase. Fix all violations before starting the next phase.
+
 ---
 
 ## Phase 1 — Core Infrastructure
@@ -90,3 +93,7 @@ After completing each task, update README.md with usage examples.
 - [ ] **T41** — Update README.md with full usage instructions and examples
 - [ ] **T42** — Add `.env.example` with required environment variable keys
 - [ ] **T43** — Final code review: ensure no hardcoded secrets, all risk rules enforced
+- [ ] **T44** — Run `ruby_mastery analyze src/` — fix all remaining violations
+- [ ] **T45** — Run `ruby_mastery architecture score src/` — target score > 80
+- [ ] **T46** — Run `ruby_mastery refactor src/` — apply all safe automatic refactors
+- [ ] **T47** — Add `rake quality` task that runs `ruby_mastery analyze src/` in CI

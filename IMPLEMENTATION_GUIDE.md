@@ -208,6 +208,41 @@ Output format: structured JSON, one object per line.
 
 ---
 
+## Code Quality Gate — ruby_mastery
+
+All code in `src/` must pass `ruby_mastery` analysis before a module is considered complete.
+
+```bash
+# Analyze the full src/ directory
+bundle exec ruby_mastery analyze src/
+
+# Apply automatic refactors (guard clauses, enumerable replacements, etc.)
+bundle exec ruby_mastery refactor src/
+
+# Generate a structured report
+bundle exec ruby_mastery report src/ --format json
+
+# Visualize inter-module architecture
+bundle exec ruby_mastery architecture graph src/
+
+# Get architecture health score (target: > 80)
+bundle exec ruby_mastery architecture score src/
+
+# Generate AI agent context summary
+bundle exec ruby_mastery architect src/
+```
+
+Thresholds (configured in `ruby_mastery.yml`):
+- Method length: ≤ 15 lines
+- Class length: ≤ 250 lines
+- Nesting depth: ≤ 2 levels
+- Architecture: no cross-layer dependencies that bypass the EventBus
+
+After completing each phase in `TASKS.md`, run `ruby_mastery analyze src/` and resolve
+all violations before advancing to the next phase.
+
+---
+
 ## Testing Standards
 
 - Every public method must have an RSpec example
