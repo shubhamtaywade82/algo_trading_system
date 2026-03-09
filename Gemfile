@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-ruby ">= 3.2.0"
+ruby "3.3.4"
 
 # HTTP client with middleware support
 gem "faraday", "~> 2.9"
