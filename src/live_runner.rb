@@ -14,13 +14,23 @@ require_relative 'execution/live_engine'
 module AlgoTradingSystem
   # Orchestrates live trading session with real-time data and strategy execution
   class LiveRunner
-    def initialize(strategy_name:, symbol:, env: 'paper', dependencies: {})
+    SYMBOL_MAP = {
+      'NIFTY' => { id: '13', segment: 'NSE_FNO' },
+      'BANKNIFTY' => { id: '25', segment: 'NSE_FNO' },
+      'FINNIFTY' => { id: '27', segment: 'NSE_FNO' },
+      'SENSEX' => { id: '51', segment: 'BSE_FNO' }
+    }.freeze
+
+    def initialize(strategy_name:, symbol:, env: 'paper', interval: 1, dependencies: {})
       Utils::Config.load!
-      @symbol = symbol
+      @symbol = symbol.upcase
       @env = env
       @strategy_name = strategy_name
+      @interval = interval
       @dependencies = dependencies
       @event_bus = Utils::EventBus.instance
+
+      @symbol_info = SYMBOL_MAP[@symbol] || SYMBOL_MAP['NIFTY']
 
       setup_api
       setup_strategy
@@ -29,14 +39,13 @@ module AlgoTradingSystem
     end
 
     def start
-      Utils::Logger.info('system.starting', env: @env, strategy: @strategy_name, symbol: @symbol)
+      Utils::Logger.info('system.starting', env: @env, strategy: @strategy_name, symbol: @symbol, interval: @interval)
 
       pre_load_historical_data
 
       @ws.connect
-      # Subscribe to Index for Spot data and Option for trading
-      # SecurityId 13 is NIFTY 50 Index
-      @ws.subscribe([{ ExchangeSegment: 'NSE_FNO', SecurityId: '13' }])
+      # Subscribe to the specified symbol for Spot data and Option for trading
+      @ws.subscribe([{ ExchangeSegment: @symbol_info[:segment], SecurityId: @symbol_info[:id] }])
 
       subscribe_to_events
 
@@ -58,15 +67,16 @@ module AlgoTradingSystem
     def pre_load_historical_data
       Utils::Logger.info('system.pre_loading_data', symbol: @symbol)
 
-      # Fetch last 2 days of 1-min data to warm up indicators
-      to_date = Date.today
-      from_date = to_date - 2
+      # Fetch last 5 days of data ending YESTERDAY to warm up indicators
+      # This avoids DH-905 errors if the market hasn't opened yet today.
+      to_date = Date.today - 1
+      from_date = to_date - 5
 
       data = @api_client.fetch_intraday_history(
-        security_id: '13', # NIFTY 50
-        exchange_segment: 'NSE_FNO',
+        security_id: @symbol_info[:id],
+        exchange_segment: @symbol_info[:segment],
         instrument: 'INDEX',
-        interval: '1',
+        interval: @interval.to_s,
         from_date: from_date,
         to_date: to_date
       )
@@ -106,7 +116,7 @@ module AlgoTradingSystem
     end
 
     def setup_aggregator
-      @aggregator = MarketData::CandleAggregator.new(interval_minutes: 1)
+      @aggregator = MarketData::CandleAggregator.new(interval_minutes: @interval)
       @aggregator.on_candle_close do |candle|
         @engine.process_candle(candle)
       end

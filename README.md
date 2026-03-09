@@ -70,9 +70,16 @@ Override defaults for specific simulation runs:
 - `--capital` or `-c`: Set starting capital for the session.
 - `--interval` or `-i`: Set the spot data timeframe.
 
-### 4. Start Live Trading (Paper Mode)
+### 4. Start Live Trading (Paper/Live Mode)
 ```bash
-rake trade -- --strategy rsi_macd --symbol NIFTY
+# Start paper trading with default settings
+bin/trade --strategy ema_crossover --symbol NIFTY
+
+# Start live trading with 5-minute interval for SENSEX
+bin/trade --strategy rsi_macd --symbol SENSEX --interval 5 --env live
+
+# List all available strategies
+bin/trade --list-strategies
 ```
 
 ## 📊 Backtest Reports

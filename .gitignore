@@ -61,3 +61,4 @@ build-iPhoneSimulator/
 # .rubocop-https?--*
 .env
 backtest_results/comparisons/backtest_summary_20260308_212918.json
+research_results/**/*

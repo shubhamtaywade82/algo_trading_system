@@ -5,14 +5,17 @@ source "https://rubygems.org"
 ruby "3.3.4"
 
 # HTTP client with middleware support
-gem "faraday", "~> 2.9"
-gem "faraday-retry", "~> 2.2"
+gem "faraday", "~> 1.10"
+gem "faraday-retry", "~> 1.0"
 
 # WebSocket client for live market data feed
 gem "websocket-client-simple", "~> 0.6"
 
 # Environment variable loading
 gem "dotenv", "~> 3.1"
+
+# DhanHQ API client
+gem "DhanHQ", "~> 2.6.2"
 
 # Config objects with type coercion and validation
 gem "dry-configurable", "~> 1.1"
